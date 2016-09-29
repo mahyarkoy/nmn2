@@ -1,3 +1,4 @@
+import json
 class Struct:
     def __init__(self, **entries):
         rec_entries = {}
@@ -64,6 +65,17 @@ class Index:
 
     def __iter__(self):
         return iter(self.ordered_contents)
+
+    def save(self, filename):
+        with open(filename, 'w+') as fp:
+            json.dump(self.contents, fp, sort_keys=True, indent=4)
+
+    def load(self, filename):
+        with open(filename, 'r') as fp:
+            filedict = json.load(fp)
+        self.contents = filedict
+        self.reverse_contents = dict([(val,key) for key, val in filedict.items()])
+        self.ordered_contents = list([key for key, val in sorted(filedict.items(), key=lambda x: x[1])])
 
 def flatten(lol):
     if isinstance(lol, tuple) or isinstance(lol, list):

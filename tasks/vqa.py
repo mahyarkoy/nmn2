@@ -16,8 +16,8 @@ QUESTION_FILE = "data/vqa/Questions/OpenEnded_mscoco_%s_questions.json"
 SINGLE_PARSE_FILE = "data/vqa/Questions/%s.sp"
 MULTI_PARSE_FILE = "data/vqa/Questions/%s.sps2"
 ANN_FILE = "data/vqa/Annotations/mscoco_%s_annotations.json"
-IMAGE_FILE = "data/vqa/Images/%s/conv/COCO_%s_%012d.jpg.npz"
-RAW_IMAGE_FILE = "data/vqa/Images/%s/raw/COCO_%s_%012d.jpg"
+IMAGE_FILE = "data/vqa/Images/conv/COCO_%s_%012d.jpg.npz"
+RAW_IMAGE_FILE = "data/vqa/Images/raw/%s/COCO_%s_%012d.jpg"
 
 MIN_COUNT = 10
 
@@ -66,19 +66,29 @@ def prepare_indices(config):
                 answer_counts[word] += 1
 
     keep_answers = reversed(sorted([(c, a) for a, c in answer_counts.items()]))
-    keep_answers = list(keep_answers)[:config.answers]
+    keep_answers = list(keep_answers)[:config.task.answers]
     for count, answer in keep_answers:
         ANSWER_INDEX.index(answer)
 
 def compute_normalizers(config):
+    # This is for loading from saved values (512,) dimension
+    if hasattr(config.model, 'load_normalizer')
+        inputfile = open(config.model.load_normalizer)
+        inputvals = np.load(inputfile)
+        mean = inputvals['mean']
+        std = inputvals['std']
+        inputfile.close()
+        return mean, std
+
+    # This is original calculation from training (***hardcode***)    
     mean = np.zeros((512,))
     mmt2 = np.zeros((512,))
     count = 0
     with open(QUESTION_FILE % "train2014") as question_f:
         questions = json.load(question_f)["questions"]
         image_ids = [q["image_id"] for q in questions]
-        if hasattr(config, "debug"):
-            image_ids = image_ids[:config.debug]
+        if hasattr(config.task, "debug"):
+            image_ids = image_ids[:config.task.debug]
         for image_id in image_ids:
             with np.load(IMAGE_FILE % ("train2014", "train2014", image_id)) as zdata:
                 assert len(zdata.keys()) == 1
@@ -91,6 +101,9 @@ def compute_normalizers(config):
         mmt2 /= count
     var = mmt2 - np.square(mean)
     std = np.sqrt(var)
+
+    # Save the mean std to file for future use (***hardcode***)
+    np.savez('logs/normalizer_data.npz', mean=mean, std=std)
 
     return mean, std
 
@@ -152,7 +165,7 @@ class VqaDatum(Datum):
 
 class VqaTask:
     def __init__(self, config):
-        prepare_indices(config.task)
+        prepare_indices(config)
         logging.debug("prepared indices")
 
         modules = {
@@ -162,13 +175,13 @@ class VqaTask:
             "and": AndModule(config.model),
         }
 
-        mean, std = compute_normalizers(config.task)
+        mean, std = compute_normalizers(config)
         logging.debug("computed image feature normalizers")
         logging.debug("using %s chooser", config.task.chooser)
 
-        self.train = VqaTaskSet(config.task, ["train2014", "val2014"], modules, mean, std)
-        self.val = VqaTaskSet(config.task, ["test-dev2015"], modules, mean, std)
-        self.test = VqaTaskSet(config.task, ["test2015"], modules, mean, std)
+        self.train = VqaTaskSet(config.task, ["train2014"], modules, mean, std) #***hardcode***
+        self.val = VqaTaskSet(config.task, ["val2014"], modules, mean, std) #***hardcode***
+        #self.test = VqaTaskSet(config.task, ["test2015"], modules, mean, std)
 
 class VqaTaskSet:
     def __init__(self, config, set_names, modules, mean, std):
@@ -229,14 +242,14 @@ class VqaTaskSet:
                 layouts = [parse_to_layout(p, config, modules) for p in parses]
                 image_id = question["image_id"]
                 try:
-                    image_set_name = "test2015" if set_name == "test-dev2015" else set_name
+                    image_set_name = "test2015" if set_name == "test-dev2015" else set_name #***hardcode***
                     datum = VqaDatum(id, indexed_question, parses, layouts, image_set_name, image_id, [], mean, std)
                     self.by_id[id] = datum
                 except IOError as e:
                     print e
                     pass
 
-        if set_name not in ("test2015", "test-dev2015"):
+        if set_name not in ("test2015", "test-dev2015"): #***hardcode***
             with open(ANN_FILE % set_name) as ann_f:
                 annotations = json.load(ann_f)["annotations"]
                 for ann in annotations:

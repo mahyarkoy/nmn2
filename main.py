@@ -22,29 +22,49 @@ import yaml
 
 def main():
     config = configure()
+
+    # Load indices if the loading is specified in config
+    if hasattr(config.model, 'load_indices'):
+        QUESTION_INDEX.load(config.model.load_indices+'question_index.json')
+        MODULE_INDEX.load(config.model.load_indices+'module_index.json')
+        ANSWER_INDEX.load(config.model.load_indices+'answer_index.json')
+        MODULE_TYPE_INDEX.load(config.model.load_indices+'module_type_index.json')
+
     task = tasks.load_task(config)
     model = models.build_model(config.model, config.opt)
 
     for i_epoch in range(config.opt.iters):
+        print('=====AT ITERATION %d=====' % i_epoch)
 
         train_loss, train_acc, _ = \
                 do_iter(task.train, model, config, train=True)
         val_loss, val_acc, val_predictions = \
                 do_iter(task.val, model, config, vis=True)
-        test_loss, test_acc, test_predictions = \
-                do_iter(task.test, model, config)
+        #test_loss, test_acc, test_predictions = \
+        #        do_iter(task.test, model, config)
 
         logging.info(
-                "%5d  |  %8.3f  %8.3f  %8.3f  |  %8.3f  %8.3f  %8.3f",
+                "%5d  |  %8.3f  %8.3f  |  %8.3f  %8.3f",
                 i_epoch,
-                train_loss, val_loss, test_loss,
-                train_acc, val_acc, test_acc)
+                train_loss, val_loss,
+                train_acc, val_acc)
 
         with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
-            print >>pred_f, json.dumps(val_predictions)
+            print >>pred_f, json.dumps(val_predictions, indent=4)
 
+        # Save the net and info
+        if i_epoch == 29:
+            QUESTION_INDEX.save('logs/question_index.json')
+            MODULE_INDEX.save('logs/module_index.json')
+            ANSWER_INDEX.save('logs/answer_index.json')
+            MODULE_TYPE_INDEX.save('logs/module_type_index.json')
+            model.save('logs/model.h5')
         #with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
         #    print >>pred_f, json.dumps(test_predictions)
+
+        # Load model if required, only once after the 0-th iteration
+        if hasattr(config.model, 'load_model') and i_epoch==0:
+            model.load(config.model.load_model)
 
 def configure():
     apollocaffe.set_random_seed(0)
@@ -179,11 +199,22 @@ def forward(data, model, config, train, vis):
     else:
         pred_ids = np.argmax(model.prediction_data, axis=1)
         pred_words = [ANSWER_INDEX.get(w) for w in pred_ids]
+
+    # Store the top 10 scores (doesnt look like probabilities)
+    top10_words = list()
+    top10_probs = list()
+    for i in range(model.prediction_data.shape[0]):
+        preds = model.prediction_data[i,:]
+        chosen = list(reversed(np.argsort(preds)))[:10]
+        top10_words.append(list(ANSWER_INDEX.get[w] for w in chosen))
+        top10_probs.append(list(preds[i] for i in chosen))
+
     predictions = list()
     for i in range(len(data)):
         qid = data[i].id
         answer = pred_words[i]
-        predictions.append({"question_id": qid, "answer": answer})
+        top10 = dict(zip(top10_words[i]:top10_probs[i]))
+        predictions.append({"question_id": qid, "answer": answer, "top10": top10})
 
     return predictions
 

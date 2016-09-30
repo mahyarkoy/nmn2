@@ -431,6 +431,11 @@ class NmnModel:
             self.nmns[modules] = Nmn(len(self.nmns), modules, self.apollo_net)
         return self.nmns[modules]
 
+    def save(self, filename):
+        self.apollo_net.save(filename)
+
+    def load(self, filename):
+        self.apollo_net.load(filename)
 
     def forward(self, layouts, layout_data, question_data, features_data,
             rel_features_data, dropout, deterministic):

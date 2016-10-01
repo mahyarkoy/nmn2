@@ -213,7 +213,7 @@ def forward(data, model, config, train, vis):
     for i in range(len(data)):
         qid = data[i].id
         answer = pred_words[i]
-        top10 = dict(zip(top10_words[i]:top10_probs[i]))
+        top10 = dict(zip(top10_words[i],top10_probs[i]))
         predictions.append({"question_id": qid, "answer": answer, "top10": top10})
 
     return predictions

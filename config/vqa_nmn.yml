@@ -15,10 +15,6 @@ model:
   combine_question: false
   att_normalization: local
 
-  load_normalizer: 'data/normalizer_data.npz'
-  load_model: 'data/model.h5'
-  load_indices: 'data/'
-
 opt:
   batch_size: 100
   iters: 30

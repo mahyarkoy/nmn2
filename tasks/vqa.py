@@ -16,7 +16,7 @@ QUESTION_FILE = "data/vqa/Questions/OpenEnded_mscoco_%s_questions.json"
 SINGLE_PARSE_FILE = "data/vqa/Questions/%s.sp"
 MULTI_PARSE_FILE = "data/vqa/Questions/%s.sps2"
 ANN_FILE = "data/vqa/Annotations/mscoco_%s_annotations.json"
-IMAGE_FILE = "data/vqa/Images/conv/COCO_%s_%012d.jpg.npz"
+IMAGE_FILE = "data/vqa/Images/conv/conv_crop_%s/COCO_%s_%012d.jpg.npz"
 RAW_IMAGE_FILE = "data/vqa/Images/raw/%s/COCO_%s_%012d.jpg"
 
 MIN_COUNT = 10
@@ -72,7 +72,7 @@ def prepare_indices(config):
 
 def compute_normalizers(config):
     # This is for loading from saved values (512,) dimension
-    if hasattr(config.model, 'load_normalizer')
+    if hasattr(config.model, 'load_normalizer'):
         inputfile = open(config.model.load_normalizer)
         inputvals = np.load(inputfile)
         mean = inputvals['mean']

@@ -206,7 +206,7 @@ def forward(data, model, config, train, vis):
     for i in range(model.prediction_data.shape[0]):
         preds = model.prediction_data[i,:]
         chosen = list(reversed(np.argsort(preds)))[:10]
-        top10_words.append(list(ANSWER_INDEX.get[w] for w in chosen))
+        top10_words.append(list(ANSWER_INDEX.get(w) for w in chosen))
         top10_probs.append(list(preds[i] for i in chosen))
 
     predictions = list()

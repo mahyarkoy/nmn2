@@ -48,17 +48,19 @@ def main():
                 i_epoch,
                 train_loss, val_loss,
                 train_acc, val_acc)
+        
+        # Save the net at each iteration
+        model.save('logs/model_%d.h5' % i_epoch)
 
         with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
-        # Save the net and info
-        if i_epoch == 29:
+        # Save the indices info only once
+        if i_epoch == 0:
             QUESTION_INDEX.save('logs/question_index.json')
             MODULE_INDEX.save('logs/module_index.json')
             ANSWER_INDEX.save('logs/answer_index.json')
             MODULE_TYPE_INDEX.save('logs/module_type_index.json')
-            model.save('logs/model.h5')
         #with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
         #    print >>pred_f, json.dumps(test_predictions)
 
@@ -70,6 +72,7 @@ def configure():
     apollocaffe.set_random_seed(0)
     np.random.seed(0)
     random.seed(0)
+    apollocaffe.set_device(2)
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
@@ -200,14 +203,14 @@ def forward(data, model, config, train, vis):
         pred_ids = np.argmax(model.prediction_data, axis=1)
         pred_words = [ANSWER_INDEX.get(w) for w in pred_ids]
 
-    # Store the top 10 scores (doesnt look like probabilities)
+    # Store the top 10 scores
     top10_words = list()
     top10_probs = list()
     for i in range(model.prediction_data.shape[0]):
         preds = model.prediction_data[i,:]
-        chosen = list(reversed(np.argsort(preds)))[:10]
+        chosen = list(reversed(np.argsort(preds)))[:5]
         top10_words.append(list(ANSWER_INDEX.get(w) for w in chosen))
-        top10_probs.append(list(preds[i] for i in chosen))
+        top10_probs.append(map(lambda x: '%.3f' %x, list(preds[w].item() for w in chosen)))
 
     predictions = list()
     for i in range(len(data)):

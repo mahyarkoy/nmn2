@@ -28,7 +28,7 @@ def main():
         QUESTION_INDEX.load(config.model.load_indices+'question_index.json')
         MODULE_INDEX.load(config.model.load_indices+'module_index.json')
         ANSWER_INDEX.load(config.model.load_indices+'answer_index.json')
-        MODULE_TYPE_INDEX.load(config.model.load_indices+'module_type_index.json')
+        #MODULE_TYPE_INDEX.load(config.model.load_indices+'module_type_index.json')
 
     task = tasks.load_task(config)
     model = models.build_model(config.model, config.opt)
@@ -60,7 +60,7 @@ def main():
             QUESTION_INDEX.save('logs/question_index.json')
             MODULE_INDEX.save('logs/module_index.json')
             ANSWER_INDEX.save('logs/answer_index.json')
-            MODULE_TYPE_INDEX.save('logs/module_type_index.json')
+            #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
         #with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
         #    print >>pred_f, json.dumps(test_predictions)
 
@@ -162,7 +162,7 @@ def featurize_layouts(datum, max_layouts):
 def forward(data, model, config, train, vis):
     model.reset()
 
-    # load batch data
+    ### load batch data
     max_len = max(len(d.question) for d in data)
     max_layouts = max(len(d.layouts) for d in data)
     channels, size, trailing = data[0].load_features().shape
@@ -184,15 +184,16 @@ def forward(data, model, config, train, vis):
         features[i, ...] = datum.load_features()
         if has_rel_features:
             rel_features[i, ...] = datum.load_rel_features()
-        layout_reprs[i, ...] = featurize_layouts(datum, max_layouts)
+        ### uncomment for use in lstm
+        #layout_reprs[i, ...] = featurize_layouts(datum, max_layouts)
     layouts = [d.layouts for d in data]
 
-    # apply model
+    ### apply model
     model.forward(
             layouts, layout_reprs, questions, features, rel_features, 
             dropout=(train and config.opt.dropout), deterministic=not train)
 
-    # extract predictions
+    ### extract predictions
     if config.opt.multiclass:
         pred_words = []
         for i in range(model.prediction_data.shape[0]):
@@ -203,7 +204,7 @@ def forward(data, model, config, train, vis):
         pred_ids = np.argmax(model.prediction_data, axis=1)
         pred_words = [ANSWER_INDEX.get(w) for w in pred_ids]
 
-    # Store the top 10 scores
+    ### Store the top 10 scores
     top10_words = list()
     top10_probs = list()
     for i in range(model.prediction_data.shape[0]):
@@ -212,6 +213,7 @@ def forward(data, model, config, train, vis):
         top10_words.append(list(ANSWER_INDEX.get(w) for w in chosen))
         top10_probs.append(map(lambda x: '%.3f' %x, list(preds[w].item() for w in chosen)))
 
+    ### Store predictions
     predictions = list()
     for i in range(len(data)):
         qid = data[i].id

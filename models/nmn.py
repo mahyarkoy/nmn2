@@ -440,8 +440,9 @@ class NmnModel:
     def forward(self, layouts, layout_data, question_data, features_data,
             rel_features_data, dropout, deterministic):
 
-        # predict layout
-
+        ### predict layout
+        # for use with layout selection, lstm
+        '''
         question_hidden = self.forward_question(question_data, dropout)
         layout_ids, layout_probs = \
                 self.forward_layout(question_hidden, layouts, layout_data,
@@ -451,9 +452,13 @@ class NmnModel:
         self.layout_probs = layout_probs
 
         chosen_layouts = [ll[i] for ll, i in zip(layouts, layout_ids)]
+        '''
 
-        # prepare layout data
-
+        # keep single layouts only, no lstm in use
+        question_hidden = 'dummy'
+        chosen_layouts = [ll[0] for ll in layouts]
+        
+        ### prepare layout data
         module_layouts = list(set(l.modules for l in chosen_layouts))
         module_layout_choices = []
         default_labels = [None for i in range(len(module_layouts))]
@@ -462,6 +467,7 @@ class NmnModel:
             module_layout_choices.append(choice)
             if default_labels[choice] is None:
                 default_labels[choice] = layout.labels
+        
         layout_label_data = []
         layout_mask = []
         for layout, choice in zip(chosen_layouts, module_layout_choices):
@@ -475,8 +481,7 @@ class NmnModel:
 
         self.module_layout_choices = module_layout_choices
 
-        # predict answer
-
+        ### predict answer
         features = self.forward_features(0, features_data, dropout)
         if rel_features_data is not None:
             rel_features = self.forward_features(1, rel_features_data, dropout)
@@ -756,6 +761,6 @@ class NmnModel:
         self.question_hidden = None
 
     def train(self):
-        self.reinforce_layout(self.cumulative_datum_losses)
+        #self.reinforce_layout(self.cumulative_datum_losses)
         self.apollo_net.backward()
         adadelta.update(self.apollo_net, self.opt_state, self.opt_config)

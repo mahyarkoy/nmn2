@@ -3,6 +3,12 @@ task:
   #debug: 1013
   chooser: cvpr # [null, cvpr, naacl]
   answers: 2000
+  load_normalizer: /media/evl/Public/Mahyar/Data/vqa/normalizer_data.npz
+  load_train: train2014
+  load_val: val2014
+  load_test: test2014
+  prepare_indices: false
+  load_indices: data/
 
 model:
   name: nmn
@@ -14,7 +20,6 @@ model:
 
   combine_question: false
   att_normalization: local
-  load_normalizer: /media/evl/Public/Mahyar/Data/vqa/normalizer_data.npz
 
 opt:
   batch_size: 100

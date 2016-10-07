@@ -30,7 +30,7 @@ def proc_question(question):
     return words
 
 def prepare_indices(config):
-    set_name = "train2014"
+    set_name = config.task.load_train
 
     word_counts = defaultdict(lambda: 0)
     with open(QUESTION_FILE % set_name) as question_f:
@@ -72,7 +72,7 @@ def prepare_indices(config):
 
 def compute_normalizers(config):
     # This is for loading from saved values (512,) dimension
-    if hasattr(config.model, 'load_normalizer'):
+    if hasattr(config.task, 'load_normalizer'):
         inputfile = open(config.model.load_normalizer)
         inputvals = np.load(inputfile)
         mean = inputvals['mean']
@@ -84,13 +84,14 @@ def compute_normalizers(config):
     mean = np.zeros((512,))
     mmt2 = np.zeros((512,))
     count = 0
-    with open(QUESTION_FILE % "train2014") as question_f:
+    trainSetName = config.task.load_train
+    with open(QUESTION_FILE % trainSetName) as question_f:
         questions = json.load(question_f)["questions"]
         image_ids = [q["image_id"] for q in questions]
         if hasattr(config.task, "debug"):
             image_ids = image_ids[:config.task.debug]
         for image_id in image_ids:
-            with np.load(IMAGE_FILE % ("train2014", "train2014", image_id)) as zdata:
+            with np.load(IMAGE_FILE % (trainSetName, trainSetName, image_id)) as zdata:
                 assert len(zdata.keys()) == 1
                 image_data = zdata[zdata.keys()[0]]
                 sq_image_data = np.square(image_data)
@@ -165,7 +166,8 @@ class VqaDatum(Datum):
 
 class VqaTask:
     def __init__(self, config):
-        prepare_indices(config)
+        if hasattr(config.task, 'prepare_indices') and config.task.prepare_indices:
+            prepare_indices(config)
         logging.debug("prepared indices")
 
         modules = {
@@ -179,8 +181,8 @@ class VqaTask:
         logging.debug("computed image feature normalizers")
         logging.debug("using %s chooser", config.task.chooser)
 
-        self.train = VqaTaskSet(config.task, ["train2014"], modules, mean, std) #***hardcode***
-        self.val = VqaTaskSet(config.task, ["val2014"], modules, mean, std) #***hardcode***
+        self.train = VqaTaskSet(config.task, [config.task.load_train], modules, mean, std) #***hardcode***
+        self.val = VqaTaskSet(config.task, [config.task.load_val], modules, mean, std) #***hardcode***
         #self.test = VqaTaskSet(config.task, ["test2015"], modules, mean, std)
 
 class VqaTaskSet:

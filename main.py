@@ -24,10 +24,10 @@ def main():
     config = configure()
 
     # Load indices if the load_indices is specified in config
-    if hasattr(config.model, 'load_indices'):
-        QUESTION_INDEX.load(config.model.load_indices+'question_index.json')
-        MODULE_INDEX.load(config.model.load_indices+'module_index.json')
-        ANSWER_INDEX.load(config.model.load_indices+'answer_index.json')
+    if hasattr(config.task, 'load_indices'):
+        QUESTION_INDEX.load(config.task.load_indices+'question_index.json')
+        MODULE_INDEX.load(config.task.load_indices+'module_index.json')
+        ANSWER_INDEX.load(config.task.load_indices+'answer_index.json')
         #MODULE_TYPE_INDEX.load(config.model.load_indices+'module_type_index.json')
 
     task = tasks.load_task(config)

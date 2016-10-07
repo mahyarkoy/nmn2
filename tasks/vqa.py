@@ -73,7 +73,7 @@ def prepare_indices(config):
 def compute_normalizers(config):
     # This is for loading from saved values (512,) dimension
     if hasattr(config.task, 'load_normalizer'):
-        inputfile = open(config.model.load_normalizer)
+        inputfile = open(config.task.load_normalizer)
         inputvals = np.load(inputfile)
         mean = inputvals['mean']
         std = inputvals['std']

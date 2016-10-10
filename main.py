@@ -34,8 +34,15 @@ def main():
     model = models.build_model(config.model, config.opt)
 
     for i_epoch in range(config.opt.iters):
-        print('=====AT ITERATION %d=====' % i_epoch)
+        print('=====LOADING THE NET=====')
+        # Load model if required, only once after the 0-th iteration
+        if i_epoch == 0 and hasattr(config.model, 'load_model'):
+            train_loss, train_acc, _ = \
+                do_iter(task.train, model, config, train=False)
+            model.load(config.model.load_model)
+            i_epoch = 2
 
+        print('=====AT ITERATION %d=====' % i_epoch)            
         train_loss, train_acc, _ = \
                 do_iter(task.train, model, config, train=True)
         val_loss, val_acc, val_predictions = \
@@ -63,10 +70,6 @@ def main():
             #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
         #with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
         #    print >>pred_f, json.dumps(test_predictions)
-
-        # Load model if required, only once after the 0-th iteration
-        if hasattr(config.model, 'load_model') and i_epoch==0:
-            model.load(config.model.load_model)
 
 def configure():
     apollocaffe.set_random_seed(0)

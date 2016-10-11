@@ -64,7 +64,7 @@ def main():
         # Save the net at each iteration
         if save_net > 0 and i_epoch%save_net == 0:
             model.save('logs/snapshots/model_%d.h5' % i_epoch)
-            model.opt_state.save('logs/snapshots/model_%d_adastate')
+            model.opt_state.save('logs/snapshots/model_%d_adastate' % i_epoch)
 
         with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
             print >>pred_f, json.dumps(val_predictions, indent=4)

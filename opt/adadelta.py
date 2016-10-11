@@ -2,11 +2,22 @@
 
 from collections import namedtuple
 import numpy as np
+import json
 
 class State:
     def __init__(self):
         self.sq_updates = dict()
         self.sq_grads = dict()
+    
+    def save(self, filename):
+        with open(filename, 'w+') as sf:
+            json.dump([self.sq_updates, self.sq_grads], sf, indent=4)
+
+    def load(self, filename):
+        with open(filename) as lf:
+            ld = json.load(lf)
+        self.sq_updates = ld[0]
+        self.sq_grads = ld[1]
 
 def update(net, state, config):
     rho = config.rho

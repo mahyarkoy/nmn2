@@ -9,6 +9,8 @@ task:
   load_test: test2014
   prepare_indices: false
   load_indices: data/
+  save_indices: false
+  save_net: 1
 
 model:
   name: nmn
@@ -20,10 +22,11 @@ model:
 
   combine_question: false
   att_normalization: local
-  load_model: data/model_1.h5
+  #load_model: data/model_4.h5
+  #load_adastate: data/model_4_adastate.json
 
 opt:
-  batch_size: 500
+  batch_size: 1000
   iters: 30
   dropout: true
   multiclass: false

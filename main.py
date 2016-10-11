@@ -33,14 +33,19 @@ def main():
     task = tasks.load_task(config)
     model = models.build_model(config.model, config.opt)
 
-    for i_epoch in range(config.opt.iters):
-        print('=====LOADING THE NET=====')
+    save_indices = config.task.save_indices if hasattr(config.task, 'save_indices') else False
+    save_net = config.task.save_net if hasattr(config.task, 'save_net') else 0
+    i_epoch = 0
+    while i_epoch < config.opt.iters:
+        print('=====PRE-LOADING THE NET=====')
         # Load model if required, only once after the 0-th iteration
         if i_epoch == 0 and hasattr(config.model, 'load_model'):
             train_loss, train_acc, _ = \
                 do_iter(task.train, model, config, train=False)
             model.load(config.model.load_model)
-            i_epoch = 2
+            if hasattr(config.model, 'load_adastate'):
+                model.opt_state.load(config.model.load_adastate)
+            i_epoch = 5
 
         print('=====AT ITERATION %d=====' % i_epoch)            
         train_loss, train_acc, _ = \
@@ -57,19 +62,23 @@ def main():
                 train_acc, val_acc)
         
         # Save the net at each iteration
-        model.save('logs/model_%d.h5' % i_epoch)
+        if save_net > 0 and i_epoch%save_net == 0:
+            model.save('logs/snapshots/model_%d.h5' % i_epoch)
+            model.opt_state.save('logs/snapshots/model_%d_adastate.json')
 
         with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
         # Save the indices info only once
-        if i_epoch == 0:
+        if save_indices:
             QUESTION_INDEX.save('logs/question_index.json')
             MODULE_INDEX.save('logs/module_index.json')
             ANSWER_INDEX.save('logs/answer_index.json')
+            save_indices = False
             #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
         #with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
         #    print >>pred_f, json.dumps(test_predictions)
+        i_epoch += 1
 
 def configure():
     apollocaffe.set_random_seed(0)

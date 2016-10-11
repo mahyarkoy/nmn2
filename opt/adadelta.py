@@ -2,7 +2,6 @@
 
 from collections import namedtuple
 import numpy as np
-import json
 
 class State:
     def __init__(self):
@@ -10,14 +9,14 @@ class State:
         self.sq_grads = dict()
     
     def save(self, filename):
-        with open(filename, 'w+') as sf:
-            json.dump([self.sq_updates, self.sq_grads], sf, indent=4)
+        np.savez(filename+'_sq_updates.npz', **self.sq_updates)
+        np.savez(filename+'_sq_grads.npz', **self.sq_grads)
 
     def load(self, filename):
-        with open(filename) as lf:
-            ld = json.load(lf)
-        self.sq_updates = ld[0]
-        self.sq_grads = ld[1]
+        updates_ld = np.load(filename+'_sq_updates.npz')
+        grads_ld = np.load(filename+'_sq_grads.npz')
+        self.sq_updates = dict(updates_ld.items())
+        self.sq_grads = dict(grads_ld.items())
 
 def update(net, state, config):
     rho = config.rho

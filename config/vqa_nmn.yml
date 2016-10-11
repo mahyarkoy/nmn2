@@ -23,10 +23,10 @@ model:
   combine_question: false
   att_normalization: local
   #load_model: data/model_4.h5
-  #load_adastate: data/model_4_adastate.json
+  #load_adastate: data/model_4_adastate
 
 opt:
-  batch_size: 1000
+  batch_size: 800
   iters: 30
   dropout: true
   multiclass: false

@@ -1,25 +1,24 @@
 task:
   name: vqa
-  #debug: 1013
+  #debug: 10
   chooser: cvpr # [null, cvpr, naacl]
   answers: 2000
-  load_normalizer: /media/evl/Public/Mahyar/Data/vqa/normalizer_data.npz
-  load_train: train2014
-  load_val: val2014
-  load_test: test2014
-  prepare_indices: false
-  load_indices: data/
-  save_indices: false
+  load_normalizer: /media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data.npz
+  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches
+  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches/val
+  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches/test
+  parse_path: /media/evl/Public/Mahyar/Data/CVPRdata/sps2
+  prepare_indices: true
+  #load_indices: data/
+  save_indices: true
   save_net: 1
 
 model:
   name: nmn
-
   lstm_hidden: 1000
   layout_hidden: 100
   att_hidden: 100
-  pred_hidden: 500
-
+  #pred_hidden: 500
   combine_question: false
   att_normalization: local
   #load_model: data/model_4.h5
@@ -27,7 +26,7 @@ model:
 
 opt:
   batch_size: 800
-  iters: 30
+  iters: 100
   dropout: true
   multiclass: false
 

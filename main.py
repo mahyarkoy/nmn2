@@ -19,10 +19,10 @@ import logging.config
 import random
 import numpy as np
 import yaml
+from os import walk
 
 def main():
     config = configure()
-
     # Load indices if the load_indices is specified in config
     if hasattr(config.task, 'load_indices'):
         QUESTION_INDEX.load(config.task.load_indices+'question_index.json')
@@ -38,22 +38,25 @@ def main():
     i_epoch = 0
     while i_epoch < config.opt.iters:
         print('=====PRE-LOADING THE NET=====')
-        # Load model if required, only once after the 0-th iteration
+        ### Load model if required, only once after the 0-th iteration
         if i_epoch == 0 and hasattr(config.model, 'load_model'):
             train_loss, train_acc, _ = \
-                do_iter(task.train, model, config, train=False)
+                #do_iter(task.train, model, config, train=False)
+                do_iter_external(config.task.load_train, task, model, config, train=False)
             model.load(config.model.load_model)
             if hasattr(config.model, 'load_adastate'):
                 model.opt_state.load(config.model.load_adastate)
-            i_epoch = 5
+            i_epoch = 5 ### Set to what ever epoch should be continued
 
         print('=====AT ITERATION %d=====' % i_epoch)            
+        train_path = config.task.load_train + '/iter_' + str(i_epoch)
+        if not os.path.isdir(train_path):
+            print 'NO MORE BATCHES AVAILABLE AT THIS TIME'
+            break
         train_loss, train_acc, _ = \
-                do_iter(task.train, model, config, train=True)
+                do_iter_external(train_path, task, model, config, train=True)
         val_loss, val_acc, val_predictions = \
-                do_iter(task.val, model, config, vis=False)
-        #test_loss, test_acc, test_predictions = \
-        #        do_iter(task.test, model, config)
+                do_iter_external(config.task.load_val, task, model, config, vis=False)
 
         logging.info(
                 "%5d  |  %8.3f  %8.3f  |  %8.3f  %8.3f",
@@ -61,23 +64,30 @@ def main():
                 train_loss, val_loss,
                 train_acc, val_acc)
         
-        # Save the net at each iteration
+        ### Save the net at each iteration
         if save_net > 0 and i_epoch%save_net == 0:
             model.save('logs/snapshots/model_%d.h5' % i_epoch)
             model.opt_state.save('logs/snapshots/model_%d_adastate' % i_epoch)
 
+        ### Store Validation prediction
         with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
-        # Save the indices info only once
+        ### Save the indices info only once
         if save_indices:
             QUESTION_INDEX.save('logs/question_index.json')
             MODULE_INDEX.save('logs/module_index.json')
             ANSWER_INDEX.save('logs/answer_index.json')
             save_indices = False
             #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
-        #with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
-        #    print >>pred_f, json.dumps(test_predictions)
+
+        ### TEST RESULTS
+        if i_epoch % 5 == 0 and i_epoch != 0:
+            test_loss, test_acc, test_predictions = \
+                    do_iter_external(config.task.load_test, task, model, config, vis=False)
+            with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
+                print >>pred_f, json.dumps(test_predictions)
+        
         i_epoch += 1
 
 def configure():
@@ -149,6 +159,38 @@ def do_iter(task_set, model, config, train=False, vis=False):
     acc /= n_batches
     return loss, acc, predictions
 
+def do_iter_external(pathname, task, model, config, train=False, vis=False):
+    loss = 0.0
+    acc = 0.0
+    predictions = []
+    n_batches = 0
+
+    ### Read batches from file
+    for (pname, dnames, fnames) in walk(pathname):
+        for fn in fnames:
+            print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fn
+            with open(pname+'/'+fn) as jf:
+                jd = json.load(jf)
+                batch_data = task.read_batch_json(jd)
+
+            batch_loss, batch_acc, batch_preds = do_batch(
+                    batch_data, model, config, train, vis)
+
+            loss += batch_loss
+            acc += batch_acc
+            predictions += batch_preds
+            n_batches += 1
+            if hasattr(config.task, 'debug'):
+                if n_batches >= config.task.debug:
+                    break
+
+    if n_batches == 0:
+        return 0, 0, dict()
+    assert len(predictions) == len(data)
+    loss /= n_batches
+    acc /= n_batches
+    return loss, acc, predictions
+
 def do_batch(data, model, config, train, vis):
     predictions = forward(data, model, config, train, vis)
     answer_loss = backward(data, model, config, train, vis)
@@ -183,14 +225,14 @@ def forward(data, model, config, train, vis):
     if has_rel_features:
         rel_channels, size_1, size_2 = data[0].load_rel_features().shape
         assert size_1 == size_2 == size
-    questions = np.ones((config.opt.batch_size, max_len)) * NULL_ID
-    features = np.zeros((config.opt.batch_size, channels, size, 1))
+    questions = np.ones((len(data), max_len)) * NULL_ID
+    features = np.zeros((len(data), channels, size, 1))
     if has_rel_features:
-        rel_features = np.zeros((config.opt.batch_size, rel_channels, size, size))
+        rel_features = np.zeros((len(data), rel_channels, size, size))
     else:
         rel_features = None
     layout_reprs = np.zeros(
-            (config.opt.batch_size, max_layouts, len(MODULE_INDEX) + 7))
+            (len(data), max_layouts, len(MODULE_INDEX) + 7))
     for i, datum in enumerate(data):
         questions[i, max_len-len(datum.question):] = datum.question
         features[i, ...] = datum.load_features()
@@ -221,17 +263,21 @@ def forward(data, model, config, train, vis):
     top10_probs = list()
     for i in range(model.prediction_data.shape[0]):
         preds = model.prediction_data[i,:]
-        chosen = list(reversed(np.argsort(preds)))[:5]
+        chosen = list(reversed(np.argsort(preds)))
         top10_words.append(list(ANSWER_INDEX.get(w) for w in chosen))
         top10_probs.append(map(lambda x: '%.3f' %x, list(preds[w].item() for w in chosen)))
 
     ### Store predictions
     predictions = list()
+    yes_id = ANSWER_INDEX.index('yes')
     for i in range(len(data)):
-        qid = data[i].id
+        #qid = data[i].id
         answer = pred_words[i]
         top10 = dict(zip(top10_words[i],top10_probs[i]))
-        predictions.append({"question_id": qid, "answer": answer, "top10": top10})
+        predictions.append({'prob': preds[yes_id].item(), 'im_name': data[i].im_name,
+                            'im_cid': data[i].im_cid, 'im_cname':data[i].im_cname,
+                            'sent_cid':data[i].sent_cid, 'sent_cname':data[i].sent_cname,
+                            'answer': answer, 'top10': top10})
 
     return predictions
 
@@ -241,12 +287,12 @@ def backward(data, model, config, train, vis):
 
     for i in range(n_answers):
         if config.opt.multiclass:
-            output_i = np.zeros((config.opt.batch_size, len(ANSWER_INDEX)))
+            output_i = np.zeros((len(data), len(ANSWER_INDEX)))
             for i_datum, datum in enumerate(data):
                 for answer in datum.answers[i]:
                     output_i[i_datum, answer] = 1
         else:
-            output_i = UNK_ID * np.ones(config.opt.batch_size)
+            output_i = UNK_ID * np.ones(len(data))
             output_i[:len(data)] = \
                     np.asarray([d.answers[i] for d in data])
         loss += model.loss(output_i, multiclass=config.opt.multiclass)

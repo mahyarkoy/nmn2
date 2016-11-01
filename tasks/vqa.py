@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import os
 import re
+from os import walk
 
 QUESTION_FILE = "data/vqa/Questions/OpenEnded_mscoco_%s_questions.json"
 SINGLE_PARSE_FILE = "data/vqa/Questions/%s.sp"
@@ -70,6 +71,37 @@ def prepare_indices(config):
     for count, answer in keep_answers:
         ANSWER_INDEX.index(answer)
 
+def prepare_indices_sps(config):
+    parsepath = config.task.parse_path
+
+    word_counts = defaultdict(lambda: 0)
+    pred_counts = defaultdict(lambda: 0)
+    for (pname, dnames, fnames) in walk(parsepath):
+        for fn in fnames:
+            parsefile = pname + '/' + fn.split('.')[0] + '.sent'
+            sentfile =  pname + '/' + fn.split('.')[0] + '.sps2'
+            with open(sentfile) as sf:
+                for question in sf:
+                    words = proc_question(question.strip())
+                    for word in words:
+                        word_counts[word] += 1
+            with open(parsefile) as pf:
+                for line in pf:
+                    parts = line.strip().replace("(", "").replace(")", "").replace(";", " ").split()
+                    for part in parts:
+                        pred_counts[part] += 1
+
+    for word, count in word_counts.items():
+        if count >= MIN_COUNT:
+            QUESTION_INDEX.index(word)
+
+    for pred, count in pred_counts.items():
+        if count >= 10 * MIN_COUNT:
+            MODULE_INDEX.index(pred)
+    
+    ANSWER_INDEX.index('yes')
+    ANSWER_INDEX.index('no')
+
 def compute_normalizers(config):
     # This is for loading from saved values (512,) dimension
     if hasattr(config.task, 'load_normalizer'):
@@ -80,7 +112,8 @@ def compute_normalizers(config):
         inputfile.close()
         return mean, std
 
-    # This is original calculation from training (***hardcode***)    
+    ### SHOULD NOT GET HERE, COMPUTE NORMALIZER OUTSIDE: This is original calculation from training (***hardcode***)
+    assert(False)
     mean = np.zeros((512,))
     mmt2 = np.zeros((512,))
     count = 0
@@ -119,7 +152,7 @@ def parse_to_layout_helper(parse, config, modules):
     if head == "and":
         module_head = modules["and"]
     else:
-        module_head = modules["describe"]
+        module_head = modules["exists"]
     label_head = MODULE_INDEX[head] or UNK_ID
     modules_here = (module_head,) + modules_below
     labels_here = (label_head,) + labels_below
@@ -130,8 +163,10 @@ def parse_to_layout(parse, config, modules):
     return Layout(modules, indices)
 
 class VqaDatum(Datum):
-    def __init__(self, id, question, parses, layouts, input_set, input_id, answers, mean, std):
+    def __init__(self):
         Datum.__init__(self)
+
+    def init_options(self, id, question, parses, layouts, input_set, input_id, answers, mean, std):
         self.id = id
         self.question = question
         self.parses = parses
@@ -145,6 +180,53 @@ class VqaDatum(Datum):
 
         self.mean = mean[:,np.newaxis,np.newaxis]
         self.std = std[:,np.newaxis,np.newaxis]
+
+        if not os.path.exists(self.input_path):
+            raise IOError("No such processed image: " + self.input_path)
+        if not os.path.exists(self.input_path):
+            raise IOError("No such source image: " + self.image_paht)
+
+    def init_options_json(self, jdict, config, mean, std):
+        #self.id = id
+        #self.input_set = input_set
+        #self.input_id = input_id
+        self.im_name = jdict['image']
+        self.im_cid = jdict['cid']
+        self.im_cname = jdict['cname']
+        self.sent_cid = jdict['sent_cid']
+        self.sent_cname = jdict['sent_cname']
+        self.mean = mean[:,np.newaxis,np.newaxis]
+        self.std = std[:,np.newaxis,np.newaxis]
+
+        ### Read sentence and convert to indexed format
+        question_str = proc_question(jdict['question'])
+        indexed_question = [QUESTION_INDEX[w] or UNK_ID for w in question_str]
+        self.question = indexed_question
+
+        ### Read parse and convert to layout
+        parse_strs = jdict['parse'].split(";")
+        parses = [parse_tree(p) for p in parse_strs]
+        parses = [("_what", "_thing") if p == "none" else p for p in parses]
+        if config.chooser == "null":
+            parses = [("_what", "_thing")]
+        elif config.chooser == "cvpr":
+            if parses[0][0] == "is":
+                parses = parses[-1:]
+            else:
+                parses = parses[:1]
+        elif config.chooser == "naacl":
+            pass
+        else:
+            assert False
+        layouts = [parse_to_layout(p, config, modules) for p in parses]
+        self.parses = parses
+        self.layouts = layouts
+
+        ### Read Image name and construct image path
+        self.input_path = config.input_path + '/' + jdict['image']
+        self.input_image = config.image_path + '/' + jdict['cname']+'/'+jdict['image']
+        indexed_answers = [ANSWER_INDEX[jdict['answer']] or UNK_ID]
+        self.answers = indexed_answers
 
         if not os.path.exists(self.input_path):
             raise IOError("No such processed image: " + self.input_path)
@@ -167,7 +249,7 @@ class VqaDatum(Datum):
 class VqaTask:
     def __init__(self, config):
         if hasattr(config.task, 'prepare_indices') and config.task.prepare_indices:
-            prepare_indices(config)
+            prepare_indices_sps(config)
         logging.debug("prepared indices")
 
         modules = {
@@ -180,10 +262,22 @@ class VqaTask:
         mean, std = compute_normalizers(config)
         logging.debug("computed image feature normalizers")
         logging.debug("using %s chooser", config.task.chooser)
+        self.config = config
+        self.mean = mean
+        self.std = std
 
-        self.train = VqaTaskSet(config.task, [config.task.load_train], modules, mean, std) #***hardcode***
-        self.val = VqaTaskSet(config.task, [config.task.load_val], modules, mean, std) #***hardcode***
+        #self.train = VqaTaskSet(config.task, [config.task.load_train], modules, mean, std) #***hardcode***
+        #self.val = VqaTaskSet(config.task, [config.task.load_val], modules, mean, std) #***hardcode***
         #self.test = VqaTaskSet(config.task, ["test2015"], modules, mean, std)
+    
+    def read_batch_json(self, jdata):
+        batch_data = list()
+        for jdict in jdata:
+            vqa_datum = VqaDatum()
+            vqa_datum.init_options_json(jdict, self.config.task, self.mean, self.std)
+            batch_data.append(vqa_datum)
+        return batch_data
+
 
 class VqaTaskSet:
     def __init__(self, config, set_names, modules, mean, std):

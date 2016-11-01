@@ -350,7 +350,7 @@ class ExistsModule(Module):
     def forward(self, index, label_data, bottoms, features, rel_features, dropout, apollo_net):
         assert len(bottoms) == 1
         mask = bottoms[0]
-
+        batch_size, channels, image_size, _ = net.blobs[features].shape
         net = apollo_net
 
         reduce = "Exists_%d_reduce" % index
@@ -361,7 +361,7 @@ class ExistsModule(Module):
         ip_param_weight = "Exists_ip_param_weight"
         ip_param_bias = "Exists_ip_param_bias"
 
-        net.f(Pooling(reduce, kernel_h=10, kernel_w=1, bottoms=[mask]))
+        net.f(Pooling(reduce, kernel_h=image_size, kernel_w=1, bottoms=[mask]))
 
         net.f(InnerProduct(
             ip, len(ANSWER_INDEX), bottoms=[reduce],

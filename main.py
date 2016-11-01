@@ -20,6 +20,7 @@ import random
 import numpy as np
 import yaml
 from os import walk
+import os
 
 def main():
     config = configure()
@@ -37,24 +38,33 @@ def main():
     save_net = config.task.save_net if hasattr(config.task, 'save_net') else 0
     i_epoch = 0
     while i_epoch < config.opt.iters:
-        print('=====PRE-LOADING THE NET=====')
+        ### Save the indices info only once
+        if save_indices:
+            QUESTION_INDEX.save('logs/question_index.json')
+            MODULE_INDEX.save('logs/module_index.json')
+            ANSWER_INDEX.save('logs/answer_index.json')
+            save_indices = False
+            #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
+
         ### Load model if required, only once after the 0-th iteration
         if i_epoch == 0 and hasattr(config.model, 'load_model'):
+            print('=====PRE-LOADING THE NET=====')
             train_loss, train_acc, _ = \
-                #do_iter(task.train, model, config, train=False)
                 do_iter_external(config.task.load_train, task, model, config, train=False)
             model.load(config.model.load_model)
             if hasattr(config.model, 'load_adastate'):
                 model.opt_state.load(config.model.load_adastate)
             i_epoch = 5 ### Set to what ever epoch should be continued
 
-        print('=====AT ITERATION %d=====' % i_epoch)            
-        train_path = config.task.load_train + '/iter_' + str(i_epoch)
+        print('=====TRAIN AT ITERATION %d=====' % i_epoch)            
+        train_path = config.task.load_train + '/itr_' + str(i_epoch)
         if not os.path.isdir(train_path):
-            print 'NO MORE BATCHES AVAILABLE AT THIS TIME'
+            print 'NO MORE BATCHES AVAILABLE AT ' + train_path
             break
         train_loss, train_acc, _ = \
                 do_iter_external(train_path, task, model, config, train=True)
+        
+        print('=====VALID AT ITERATION %d=====' % i_epoch) 
         val_loss, val_acc, val_predictions = \
                 do_iter_external(config.task.load_val, task, model, config, vis=False)
 
@@ -73,16 +83,8 @@ def main():
         with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
-        ### Save the indices info only once
-        if save_indices:
-            QUESTION_INDEX.save('logs/question_index.json')
-            MODULE_INDEX.save('logs/module_index.json')
-            ANSWER_INDEX.save('logs/answer_index.json')
-            save_indices = False
-            #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
-
         ### TEST RESULTS
-        if i_epoch % 5 == 0 and i_epoch != 0:
+        if i_epoch % 3 == 0 and i_epoch != 0:
             test_loss, test_acc, test_predictions = \
                     do_iter_external(config.task.load_test, task, model, config, vis=False)
             with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
@@ -164,7 +166,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
     acc = 0.0
     predictions = []
     n_batches = 0
-
+    data_size = 0
     ### Read batches from file
     for (pname, dnames, fnames) in walk(pathname):
         for fn in fnames:
@@ -173,6 +175,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
                 jd = json.load(jf)
                 batch_data = task.read_batch_json(jd)
 
+            data_size += len(batch_data)
             batch_loss, batch_acc, batch_preds = do_batch(
                     batch_data, model, config, train, vis)
 
@@ -186,7 +189,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
 
     if n_batches == 0:
         return 0, 0, dict()
-    assert len(predictions) == len(data)
+    assert len(predictions) == data_size
     loss /= n_batches
     acc /= n_batches
     return loss, acc, predictions
@@ -214,7 +217,7 @@ def featurize_layouts(datum, max_layouts):
     return layout_reprs
 
 def forward(data, model, config, train, vis):
-    model.reset()
+    model.reset(len(data))
 
     ### load batch data
     max_len = max(len(d.question) for d in data)
@@ -261,20 +264,22 @@ def forward(data, model, config, train, vis):
     ### Store the top 10 scores
     top10_words = list()
     top10_probs = list()
+    yes_prs = list()
+    yes_id = ANSWER_INDEX.index('yes')
     for i in range(model.prediction_data.shape[0]):
         preds = model.prediction_data[i,:]
         chosen = list(reversed(np.argsort(preds)))
         top10_words.append(list(ANSWER_INDEX.get(w) for w in chosen))
         top10_probs.append(map(lambda x: '%.3f' %x, list(preds[w].item() for w in chosen)))
+        yes_prs.append(preds[yes_id].item())
 
     ### Store predictions
     predictions = list()
-    yes_id = ANSWER_INDEX.index('yes')
     for i in range(len(data)):
         #qid = data[i].id
         answer = pred_words[i]
         top10 = dict(zip(top10_words[i],top10_probs[i]))
-        predictions.append({'prob': preds[yes_id].item(), 'im_name': data[i].im_name,
+        predictions.append({'prob': yes_prs[i], 'im_name': data[i].im_name,
                             'im_cid': data[i].im_cid, 'im_cname':data[i].im_cname,
                             'sent_cid':data[i].sent_cid, 'sent_cname':data[i].sent_cname,
                             'answer': answer, 'top10': top10})

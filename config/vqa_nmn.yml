@@ -3,14 +3,16 @@ task:
   #debug: 10
   chooser: cvpr # [null, cvpr, naacl]
   answers: 2000
+  input_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs
+  image_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images
   load_normalizer: /media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data.npz
   load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches
   load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches/val
   load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches/test
   parse_path: /media/evl/Public/Mahyar/Data/CVPRdata/sps2
-  prepare_indices: true
-  #load_indices: data/
-  save_indices: true
+  prepare_indices: false
+  load_indices: data/
+  save_indices: false
   save_net: 1
 
 model:

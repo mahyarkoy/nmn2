@@ -72,11 +72,15 @@ def prepare_indices(config):
         ANSWER_INDEX.index(answer)
 
 def prepare_indices_sps(config):
+    print '===Preparing indices...'
     parsepath = config.task.parse_path
 
     word_counts = defaultdict(lambda: 0)
     pred_counts = defaultdict(lambda: 0)
+    path_count = 0
     for (pname, dnames, fnames) in walk(parsepath):
+        print '===At Path >>> '+ str(path_count)
+        path_count += 1
         for fn in fnames:
             parsefile = pname + '/' + fn.split('.')[0] + '.sent'
             sentfile =  pname + '/' + fn.split('.')[0] + '.sps2'
@@ -142,7 +146,7 @@ def compute_normalizers(config):
     return mean, std
 
 def parse_to_layout_helper(parse, config, modules):
-    if isinstance(parse, str):
+    if isinstance(parse, str) or isinstance(parse, unicode):
         return modules["find"], MODULE_INDEX[parse] or UNK_ID
     head = parse[0]
     below = [parse_to_layout_helper(c, config, modules) for c in parse[1:]]
@@ -186,7 +190,7 @@ class VqaDatum(Datum):
         if not os.path.exists(self.input_path):
             raise IOError("No such source image: " + self.image_paht)
 
-    def init_options_json(self, jdict, config, mean, std):
+    def init_options_json(self, jdict, config, modules, mean, std):
         #self.id = id
         #self.input_set = input_set
         #self.input_id = input_id
@@ -252,7 +256,7 @@ class VqaTask:
             prepare_indices_sps(config)
         logging.debug("prepared indices")
 
-        modules = {
+        self.modules = {
             "find": MLPFindModule(config.model),
             "describe": DescribeModule(config.model),
             "exists": ExistsModule(config.model),
@@ -265,6 +269,9 @@ class VqaTask:
         self.config = config
         self.mean = mean
         self.std = std
+        logging.info("%d answers", len(ANSWER_INDEX))
+        logging.info("%d predicates", len(MODULE_INDEX))
+        logging.info("%d words", len(QUESTION_INDEX))
 
         #self.train = VqaTaskSet(config.task, [config.task.load_train], modules, mean, std) #***hardcode***
         #self.val = VqaTaskSet(config.task, [config.task.load_val], modules, mean, std) #***hardcode***
@@ -274,7 +281,7 @@ class VqaTask:
         batch_data = list()
         for jdict in jdata:
             vqa_datum = VqaDatum()
-            vqa_datum.init_options_json(jdict, self.config.task, self.mean, self.std)
+            vqa_datum.init_options_json(jdict, self.config.task, self.modules, self.mean, self.std)
             batch_data.append(vqa_datum)
         return batch_data
 

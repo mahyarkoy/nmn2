@@ -350,8 +350,8 @@ class ExistsModule(Module):
     def forward(self, index, label_data, bottoms, features, rel_features, dropout, apollo_net):
         assert len(bottoms) == 1
         mask = bottoms[0]
-        batch_size, channels, image_size, _ = net.blobs[features].shape
         net = apollo_net
+        batch_size, channels, image_size, _ = net.blobs[features].shape
 
         reduce = "Exists_%d_reduce" % index
         ip = "Exists_%d_ip" % index
@@ -482,7 +482,7 @@ class NmnModel:
         self.module_layout_choices = module_layout_choices
 
         ### predict answer
-        features = self.forward_features(0, features_data, dropout)
+        features = self.forward_features(features_data.shape[0], features_data, dropout)
         if rel_features_data is not None:
             rel_features = self.forward_features(1, rel_features_data, dropout)
         else:
@@ -754,10 +754,10 @@ class NmnModel:
 
         net.f(AsLoss(loss, bottoms=[weight]))
 
-    def reset(self):
+    def reset(self, batch_size):
         self.apollo_net.clear_forward()
         self.loss_counter = 0
-        self.cumulative_datum_losses = np.zeros((self.opt_config.batch_size,))
+        self.cumulative_datum_losses = np.zeros((batch_size,))
         self.question_hidden = None
 
     def train(self):

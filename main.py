@@ -356,7 +356,7 @@ def visualize(batch_data, model):
     fields.append(parse)
     fields.append(sent_cname)
     fields.append(", ".join(top_answers))
-    fields.append(", ".join([ANSWER_INDEX.get(a) for a in datum.answers])
+    fields.append(", ".join([ANSWER_INDEX.get(a) for a in datum.answers]))
     visualizer.show(fields)
 
 def compute_acc(predictions, data, config):

@@ -67,7 +67,7 @@ def main():
         
         print('=====VALID AT ITERATION %d=====' % i_epoch) 
         val_loss, val_acc, val_predictions = \
-                do_iter_external(config.task.load_val, task, model, config, vis=False)
+                do_iter_external(config.task.load_val, task, model, config, vis=True)
 
         logging.info(
                 "%5d  |  %8.3f  %8.3f  |  %8.3f  %8.3f",
@@ -173,6 +173,9 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
     n_batches = 0
     data_size = 0
     ### Read batches from file
+    if vis:
+        visualizer.begin(pathname.split('/')[-1], 100)
+
     for (pname, dnames, fnames) in walk(pathname):
         for fn in fnames:
             print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fn
@@ -188,9 +191,13 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
             acc += batch_acc
             predictions += batch_preds
             n_batches += 1
+            if vis:
+                visualize(batch_data, model)
             if hasattr(config.task, 'debug'):
                 if n_batches >= config.task.debug:
                     break
+    if vis:
+        visualizer.end()
 
     if n_batches == 0:
         return 0, 0, dict()
@@ -314,28 +321,42 @@ def backward(data, model, config, train, vis):
 
 def visualize(batch_data, model):
     i_datum = 0
-    #mod_layout_choice = model.module_layout_choices[i_datum]
+    att_blobs = list()
+    mod_layout_choice = model.module_layout_choices[i_datum]
     #print model.apollo_net.blobs.keys()
-    #att_blob_name = "Find_%d_softmax" % (mod_layout_choice * 100 + 1)
-    #
+    for i in range(0,4):
+        att_blob_name = "Find_%d_sigmoid" % (mod_layout_choice * 100 + 1)
+        if att_blob_name in model.apollo_net.blobs.keys():
+            att_blobs.append(att_blob_name)
+    if len(att_blobs) == 0:
+        return
+
     datum = batch_data[i_datum]
-    question = " ".join([QUESTION_INDEX.get(w) for w in datum.question[1:-1]]),
+    #question = " ".join([QUESTION_INDEX.get(w) for w in datum.question[1:-1]]),
     preds = model.prediction_data[i_datum,:]
-    top = np.argsort(preds)[-5:]
+    top = np.argsort(preds)
     top_answers = reversed([ANSWER_INDEX.get(p) for p in top])
-    #att_data = model.apollo_net.blobs[att_blob_name].data[i_datum,...]
-    #att_data = att_data.reshape((14, 14))
-    att_data = np.zeros((14, 14))
-    chosen_parse = datum.parses[model.layout_ids[i_datum]]
-    
-    fields = [
-        question,
-        str(chosen_parse),
-        "<img src='../../%s'>" % datum.image_path,
-        att_data,
-        ", ".join(top_answers),
-        ", ".join([ANSWER_INDEX.get(a) for a in datum.answers])
-    ]
+    parse = batch_data[i_datum].parses
+    im_name = batch_data[i_datum].im_name
+    im_cid = batch_data[i_datum].im_cid
+    sent_cid = batch_data[i_datum].sent_cid
+
+    att_data_list = list()
+    fields = list()
+    for i_atb, atb in enumerate(att_blobs):
+        att_data = model.apollo_net.blobs[atb].data[i_datum,...]
+        att_data = att_data.reshape((14, 14))
+        att_data_list.append(att_data)
+        fields.append(att_data)
+        fields.append('ATT for id: '+ str(i_atb))
+    #att_data = np.zeros((14, 14))
+    #chosen_parse = datum.parses[model.layout_ids[i_datum]]
+    fields.append(im_name)
+    fields.append(im_cname)
+    fields.append(parse)
+    fields.append(sent_cname)
+    fields.append(", ".join(top_answers))
+    fields.append(", ".join([ANSWER_INDEX.get(a) for a in datum.answers])
     visualizer.show(fields)
 
 def compute_acc(predictions, data, config):

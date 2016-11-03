@@ -4,7 +4,7 @@ import numpy as np
 import os
 import scipy
 
-VIS_DIR = "vis"
+VIS_DIR = "logs/vis"
 
 class Visualizer:
     def __init__(self):

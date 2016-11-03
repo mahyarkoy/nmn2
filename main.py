@@ -37,7 +37,7 @@ def main():
     save_indices = config.task.save_indices if hasattr(config.task, 'save_indices') else False
     save_net = config.task.save_net if hasattr(config.task, 'save_net') else 0
     i_epoch = 0
-    while i_epoch < config.opt.iters:
+    while i_epoch <= config.opt.iters:
         ### Save the indices info only once
         if save_indices:
             QUESTION_INDEX.save('logs/question_index.json')
@@ -49,12 +49,13 @@ def main():
         ### Load model if required, only once after the 0-th iteration
         if i_epoch == 0 and hasattr(config.model, 'load_model'):
             print('=====PRE-LOADING THE NET=====')
+            train_path = config.task.load_train + '/itr_' + str(i_epoch)
             train_loss, train_acc, _ = \
-                do_iter_external(config.task.load_train, task, model, config, train=False)
+                do_iter_external(train_path, task, model, config, train=False)
             model.load(config.model.load_model)
             if hasattr(config.model, 'load_adastate'):
                 model.opt_state.load(config.model.load_adastate)
-            i_epoch = 5 ### Set to what ever epoch should be continued
+            i_epoch = 10 ### Set to what ever epoch should be continued
 
         print('=====TRAIN AT ITERATION %d=====' % i_epoch)            
         train_path = config.task.load_train + '/itr_' + str(i_epoch)
@@ -84,9 +85,13 @@ def main():
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
         ### TEST RESULTS
-        if i_epoch % 3 == 0 and i_epoch != 0:
+        if i_epoch % 5 == 0 and i_epoch != 0:
             test_loss, test_acc, test_predictions = \
                     do_iter_external(config.task.load_test, task, model, config, vis=False)
+            logging.info(
+                    "TEST_%5d  |  %8.3f  |  %8.3f",
+                    i_epoch,
+                    test_loss, test_acc)
             with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
                 print >>pred_f, json.dumps(test_predictions)
         
@@ -282,7 +287,7 @@ def forward(data, model, config, train, vis):
         predictions.append({'prob': yes_prs[i], 'im_name': data[i].im_name,
                             'im_cid': data[i].im_cid, 'im_cname':data[i].im_cname,
                             'sent_cid':data[i].sent_cid, 'sent_cname':data[i].sent_cname,
-                            'answer': answer, 'top10': top10})
+                            'answer': answer, 'parses': data[i].parses, 'top10': top10})
 
     return predictions
 

@@ -223,7 +223,7 @@ class VqaDatum(Datum):
         else:
             assert False
         layouts = [parse_to_layout(p, config, modules) for p in parses]
-        self.parses = parses
+        self.parses = parse_strs[0]
         self.layouts = layouts
 
         ### Read Image name and construct image path

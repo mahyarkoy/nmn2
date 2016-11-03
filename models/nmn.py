@@ -361,7 +361,7 @@ class ExistsModule(Module):
         ip_param_weight = "Exists_ip_param_weight"
         ip_param_bias = "Exists_ip_param_bias"
 
-        net.f(Pooling(reduce, kernel_h=image_size, kernel_w=1, bottoms=[mask]))
+        net.f(Pooling(reduce, kernel_h=10, kernel_w=1, bottoms=[mask]))
 
         net.f(InnerProduct(
             ip, len(ANSWER_INDEX), bottoms=[reduce],

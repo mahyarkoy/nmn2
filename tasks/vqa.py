@@ -228,7 +228,7 @@ class VqaDatum(Datum):
 
         ### Read Image name and construct image path
         self.input_path = config.input_path + '/' + jdict['image']
-        self.input_image = config.image_path + '/' + jdict['cname']+'/'+jdict['image']
+        self.input_image = config.image_path + '/' + jdict['cname']+'/'+jdict['image'].strip('.npz')
         indexed_answers = [ANSWER_INDEX[jdict['answer']] or UNK_ID]
         self.answers = indexed_answers
 

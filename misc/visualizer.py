@@ -18,7 +18,7 @@ class Visualizer:
 
         self.dest_dir = os.path.join(VIS_DIR, dest)
         if not os.path.exists(self.dest_dir):
-            os.mkdir(self.dest_dir)
+            os.system('mkdir -p '+self.dest_dir)
 
     def reset(self):
         self.next_entry = 0
@@ -35,7 +35,7 @@ class Visualizer:
             for line in self.lines:
                 print >>vis_file, "  <tr>"
                 for field in line:
-                    print >>vis_file, "    <td>",
+                    print >>vis_file, "    <td width='20%%'>",
                     print >>vis_file, field,
                     print >>vis_file, "</td>"
                 print >>vis_file, "  </tr>"
@@ -50,7 +50,7 @@ class Visualizer:
                 filename = "%d_%d.jpg" % (self.next_entry, i_field)
                 filepath = os.path.join(self.dest_dir, filename)
                 scipy.misc.imsave(filepath, field)
-                table_data.append("<img src='%s' />" % filename)
+                table_data.append("<img src='%s' width='100%%'/>" % filename)
             else:
                 table_data.append(str(field))
 

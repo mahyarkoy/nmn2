@@ -6,9 +6,9 @@ task:
   input_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs
   image_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images
   load_normalizer: /media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data.npz
-  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches
-  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches/val
-  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches/test
+  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches2
+  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches2/val
+  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches2/test
   parse_path: /media/evl/Public/Mahyar/Data/CVPRdata/sps2
   prepare_indices: false
   load_indices: data/

@@ -325,7 +325,7 @@ def visualize(batch_data, model):
     mod_layout_choice = model.module_layout_choices[i_datum]
     #print model.apollo_net.blobs.keys()
     for i in range(0,4):
-        att_blob_name = "Find_%d_sigmoid" % (mod_layout_choice * 100 + 1)
+        att_blob_name = "Find_%d_sigmoid" % (mod_layout_choice * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
     if len(att_blobs) == 0:
@@ -337,25 +337,25 @@ def visualize(batch_data, model):
     top = np.argsort(preds)
     top_answers = reversed([ANSWER_INDEX.get(p) for p in top])
     parse = batch_data[i_datum].parses
-    im_name = batch_data[i_datum].im_name
+    im_path = batch_data[i_datum].input_image
     im_cid = batch_data[i_datum].im_cid
     sent_cid = batch_data[i_datum].sent_cid
 
     att_data_list = list()
     fields = list()
+    fields.append("<img src='%s' width='100%%'/>" % im_path)
     for i_atb, atb in enumerate(att_blobs):
         att_data = model.apollo_net.blobs[atb].data[i_datum,...]
         att_data = att_data.reshape((14, 14))
         att_data_list.append(att_data)
         fields.append(att_data)
-        fields.append('ATT for id: '+ str(i_atb))
+        #fields.append('ATT for id: '+ str(i_atb))
     #att_data = np.zeros((14, 14))
     #chosen_parse = datum.parses[model.layout_ids[i_datum]]
-    fields.append(im_name)
-    fields.append(im_cname)
+    fields.append(im_cid)
     fields.append(parse)
-    fields.append(sent_cname)
-    fields.append(", ".join(top_answers))
+    fields.append(sent_cid)
+    #fields.append(", ".join(top_answers))
     fields.append(", ".join([ANSWER_INDEX.get(a) for a in datum.answers]))
     visualizer.show(fields)
 

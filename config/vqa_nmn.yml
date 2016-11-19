@@ -3,12 +3,12 @@ task:
   #debug: 10
   chooser: cvpr # [null, cvpr, naacl]
   answers: 2000
-  input_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs
+  input_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_nc
   image_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images
   load_normalizer: /media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data.npz
-  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches2
-  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches2/val
-  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches2/test
+  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches
+  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches/val
+  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches3/test
   parse_path: /media/evl/Public/Mahyar/Data/CVPRdata/sps2
   prepare_indices: false
   load_indices: data/
@@ -32,7 +32,7 @@ opt:
   dropout: true
   multiclass: false
 
-  rho: 0.95
+  rho: 0.90
   eps: 0.000001
   lr: 1
   clip: 10.0

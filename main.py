@@ -85,7 +85,7 @@ def main():
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
         ### TEST RESULTS
-        if i_epoch % 5 == 0 and i_epoch != 0:
+        if i_epoch % 10 == 0 and i_epoch != 0:
             test_loss, test_acc, test_predictions = \
                     do_iter_external(config.task.load_test, task, model, config, vis=False)
             logging.info(
@@ -320,14 +320,29 @@ def backward(data, model, config, train, vis):
     return loss
 
 def visualize(batch_data, model):
-    i_datum = 0
+    i_datum = np.random.choice(len(batch_data))
     att_blobs = list()
+    att_ids = list()
     mod_layout_choice = model.module_layout_choices[i_datum]
     #print model.apollo_net.blobs.keys()
-    for i in range(0,4):
+    for i in range(0,10):
         att_blob_name = "Find_%d_sigmoid" % (mod_layout_choice * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
+            att_ids.append('AT'+str(i))
+    for i in range(0,10):
+        att_blob_name = "AND_%d_prod" % (mod_layout_choice * 100 + i)
+        if att_blob_name in model.apollo_net.blobs.keys():
+            att_blobs.append(att_blob_name)
+            att_ids.append('AND'+str(i))
+    ext_blob_ids = 'NONE'
+    ext_val = -11
+    for i in range(0,10):
+        ext_blob_name = "Exists_%d_reduce" % (mod_layout_choice * 100 + i)
+        if ext_blob_name in model.apollo_net.blobs.keys():
+            ext_blob_ids='AT'+str(i)
+            ext_val = model.apollo_net.blobs[ext_blob_name].data[i_datum,...].item()
+            break
     if len(att_blobs) == 0:
         return
 
@@ -335,7 +350,7 @@ def visualize(batch_data, model):
     #question = " ".join([QUESTION_INDEX.get(w) for w in datum.question[1:-1]]),
     preds = model.prediction_data[i_datum,:]
     top = np.argsort(preds)
-    top_answers = reversed([ANSWER_INDEX.get(p) for p in top])
+    top_answers = list(reversed([ANSWER_INDEX.get(p) for p in top]))
     parse = batch_data[i_datum].parses
     im_path = batch_data[i_datum].input_image
     im_cid = batch_data[i_datum].im_cid
@@ -343,20 +358,22 @@ def visualize(batch_data, model):
 
     att_data_list = list()
     fields = list()
-    fields.append("<img src='%s' width='100%%'/>" % im_path)
+    fields.append("<img src='%s' width='140' height='140'/>" % im_path)
     for i_atb, atb in enumerate(att_blobs):
         att_data = model.apollo_net.blobs[atb].data[i_datum,...]
         att_data = att_data.reshape((14, 14))
         att_data_list.append(att_data)
         fields.append(att_data)
-        #fields.append('ATT for id: '+ str(i_atb))
+        fields.append(att_ids[i_atb])
     #att_data = np.zeros((14, 14))
     #chosen_parse = datum.parses[model.layout_ids[i_datum]]
-    fields.append(im_cid)
+    #fields.append(im_cid)
     fields.append(parse)
-    fields.append(sent_cid)
+    #fields.append(sent_cid)
     #fields.append(", ".join(top_answers))
+    fields.append('TOP:'+top_answers[0])
     fields.append(", ".join([ANSWER_INDEX.get(a) for a in datum.answers]))
+    fields.append('EXT_'+ext_blob_ids+'_%.3f'% ext_val)
     visualizer.show(fields)
 
 def compute_acc(predictions, data, config):

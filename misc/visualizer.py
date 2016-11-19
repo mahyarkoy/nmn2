@@ -35,7 +35,7 @@ class Visualizer:
             for line in self.lines:
                 print >>vis_file, "  <tr>"
                 for field in line:
-                    print >>vis_file, "    <td width='20%%'>",
+                    print >>vis_file, "    <td>",
                     print >>vis_file, field,
                     print >>vis_file, "</td>"
                 print >>vis_file, "  </tr>"
@@ -50,7 +50,7 @@ class Visualizer:
                 filename = "%d_%d.jpg" % (self.next_entry, i_field)
                 filepath = os.path.join(self.dest_dir, filename)
                 scipy.misc.imsave(filepath, field)
-                table_data.append("<img src='%s' width='100%%'/>" % filename)
+                table_data.append("<img src='%s' width='140' height='140' />" % filename)
             else:
                 table_data.append(str(field))
 

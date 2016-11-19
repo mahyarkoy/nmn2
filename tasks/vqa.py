@@ -3,7 +3,7 @@
 from misc.datum import Datum, Layout
 from misc.indices import QUESTION_INDEX, MODULE_INDEX, ANSWER_INDEX, UNK_ID
 from misc.parse import parse_tree
-from models.nmn import MLPFindModule, DescribeModule, ExistsModule, AndModule
+from models.nmn import MultiplicativeFindModule, MLPFindModule, DescribeModule, ExistsModule, AndModule
 
 from collections import defaultdict
 import json
@@ -257,7 +257,8 @@ class VqaTask:
         logging.debug("prepared indices")
 
         self.modules = {
-            "find": MLPFindModule(config.model),
+            "find": MultiplicativeFindModule(config.model),
+            #"find": MLPFindModule(config.model),
             "describe": DescribeModule(config.model),
             "exists": ExistsModule(config.model),
             "and": AndModule(config.model),

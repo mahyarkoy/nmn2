@@ -722,10 +722,10 @@ class NmnModel:
 
         else:
             net.f(NumpyData(target, answer_data))
-            #acc_loss = net.f(SoftmaxWithLoss(
+            acc_loss = net.f(SoftmaxWithLoss(
+                loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=10))
+            #acc_loss = net.f(MultinomialLogisticLoss(
             #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
-            acc_loss = net.f(MultinomialLogisticLoss(
-                loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
 
             net.f(Softmax(datum_loss, bottoms=[self.prediction]))
 

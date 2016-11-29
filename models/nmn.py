@@ -502,9 +502,9 @@ class NmnModel:
         self.prediction = self.forward_pred(question_hidden, chosen_hidden)
 
         batch_size = self.apollo_net.blobs[nmn_hiddens[0]].shape[0]
-        self.apollo_net.f(Softmax('tmp_pred_probs', bottoms=[self.prediction]))
-        #self.prediction_data = self.apollo_net.blobs[self.prediction].data
-        self.prediction_data = self.apollo_net.blobs['tmp_pred_probs'].data
+        #self.apollo_net.f(Softmax('tmp_pred_probs', bottoms=[self.prediction]))
+        self.prediction_data = self.apollo_net.blobs[self.prediction].data
+        #self.prediction_data = self.apollo_net.blobs['tmp_pred_probs'].data
         self.att_data = np.zeros((batch_size, 14, 14))
 
     def forward_choice(self, module_layouts, layout_mask, nmn_hiddens):
@@ -722,7 +722,9 @@ class NmnModel:
 
         else:
             net.f(NumpyData(target, answer_data))
-            acc_loss = net.f(SoftmaxWithLoss(
+            #acc_loss = net.f(SoftmaxWithLoss(
+            #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
+            acc_loss = net.f(MultinomialLogisticLoss(
                 loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
 
             net.f(Softmax(datum_loss, bottoms=[self.prediction]))

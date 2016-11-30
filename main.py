@@ -331,7 +331,7 @@ def visualize(batch_data, model):
             att_blobs.append(att_blob_name)
             att_ids.append('AT'+str(i))
     for i in range(0,10):
-        att_blob_name = "AND_%d_prod" % (mod_layout_choice * 100 + i)
+        att_blob_name = "And_%d_prod" % (mod_layout_choice * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AND'+str(i))

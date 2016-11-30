@@ -85,7 +85,7 @@ def main():
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
         ### TEST RESULTS
-        if i_epoch % 10 == 0 and i_epoch != 0:
+        if i_epoch % 5 == 0 and i_epoch != 0:
             test_loss, test_acc, test_predictions = \
                     do_iter_external(config.task.load_test, task, model, config, vis=False)
             logging.info(
@@ -101,7 +101,7 @@ def configure():
     apollocaffe.set_random_seed(0)
     np.random.seed(0)
     random.seed(0)
-    apollocaffe.set_device(2)
+    apollocaffe.set_device(1)
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(

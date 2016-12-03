@@ -1,4 +1,4 @@
-from layers.reinforce import Index, AsLoss
+from layers.reinforce import Index, AsLoss, PyL1Loss
 from misc.indices import QUESTION_INDEX, MODULE_INDEX, ANSWER_INDEX, UNK_ID
 from misc import util
 from opt import adadelta
@@ -188,6 +188,8 @@ class MultiplicativeFindModule(Module):
         sigmoid = "Find_%d_sigmoid" % index
         softmax = "Find_%d_softmax" % index
         copy = "Find_%d_copy" % index
+        word_l1norm = "Find_%d_word_L1_Norm" % index
+        att_l1norm = "Find_%d_att_L1_Norm" % index
 
         proj_image_param_weight = "Find_proj_image_param_weight"
         proj_image_param_bias = "Find_proj_image_param_bias"
@@ -202,6 +204,10 @@ class MultiplicativeFindModule(Module):
                 label_vec, channels, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
         net.blobs[label_vec].reshape((batch_size, channels, 1, 1))
+        
+        ### word projection L1 regularization
+        ### net.f(word_l1norm, loss_weight=10, bottoms=[label_vec])
+
         if dropout:
             net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
             label_vec_final = label_vec_dropout
@@ -219,6 +225,9 @@ class MultiplicativeFindModule(Module):
 
         if self.config.att_normalization == "local":
             net.f(Sigmoid(sigmoid, bottoms=[mask]))
+            ### attention L1 regularization
+            net.f(att_l1norm, loss_weight=10, bottoms=[sigmoid])
+
             prev = sigmoid
         elif self.config.att_normalization == "global":
             net.f(Softmax(softmax, bottoms=[mask]))

@@ -31,3 +31,15 @@ class Reduction(LossLayer):
     def __init__(self, name, axis, **kwargs):
         kwargs["axis"] = axis
         super(Reduction, self).__init__(self, name, kwargs)
+
+class PyL1Loss(PyLayer):
+    def __init__(self, name, loss_weight=1, normalize=2, **kwargs):
+        PyLayer.__init__(self, name, dict(), **kwargs)
+        self.loss_weight = loss_weight
+    def reshape(self, bottom, top):
+        top[0].reshape((1,))
+    def forward(self, bottom, top):
+        top[0].reshape((1,))
+        top[0].data[...] = self.loss_weight*np.sum(np.absolute(bottom[0].data))/bottom[0].shape[0]
+    def backward(self, top, bottom):
+        bottom[0].diff[...] += self.loss_weight*np.sign(bottom[0].data)/bottom[0].shape[0]

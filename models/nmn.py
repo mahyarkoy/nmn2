@@ -206,7 +206,7 @@ class MultiplicativeFindModule(Module):
         net.blobs[label_vec].reshape((batch_size, channels, 1, 1))
         
         ### word projection L1 regularization
-        ### net.f(word_l1norm, loss_weight=10, bottoms=[label_vec])
+        # net.f(PyL1Loss(word_l1norm, loss_weight=10, bottoms=[label_vec]))
 
         if dropout:
             net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
@@ -226,7 +226,7 @@ class MultiplicativeFindModule(Module):
         if self.config.att_normalization == "local":
             net.f(Sigmoid(sigmoid, bottoms=[mask]))
             ### attention L1 regularization
-            net.f(att_l1norm, loss_weight=10, bottoms=[sigmoid])
+            net.f(PyL1Loss(att_l1norm, loss_weight=10, bottoms=[sigmoid]))
 
             prev = sigmoid
         elif self.config.att_normalization == "global":

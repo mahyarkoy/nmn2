@@ -208,6 +208,7 @@ class MultiplicativeFindModule(Module):
         ### word projection L1 regularization
         # net.f(PyL1Loss(word_l1norm, loss_weight=10, bottoms=[label_vec]))
 
+
         if dropout:
             net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
             label_vec_final = label_vec_dropout

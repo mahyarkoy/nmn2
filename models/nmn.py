@@ -202,7 +202,7 @@ class MultiplicativeFindModule(Module):
         # compute attention mask
         ### Project images to att_hidden channels
         net.f(Convolution(
-                proj_image, (1, 1), self.config.att_hidden, bottoms=[image],
+                proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
         ### Create a batch_size*att_hidden*1*1 filter

@@ -234,25 +234,18 @@ def forward(data, model, config, train, vis):
     ### load batch data
     max_len = max(len(d.question) for d in data)
     max_layouts = max(len(d.layouts) for d in data)
-    channels, size, trailing = data[0].load_features().shape
-    assert trailing == 1
+    channels, width, height = data[0].load_features().shape
+    #channels, size, trailing = data[0].load_features().shape
+    #assert trailing == 1
+    rel_features = None
     has_rel_features = data[0].load_rel_features() is not None
-    if has_rel_features:
-        rel_channels, size_1, size_2 = data[0].load_rel_features().shape
-        assert size_1 == size_2 == size
     questions = np.ones((len(data), max_len)) * NULL_ID
-    features = np.zeros((len(data), channels, size, 1))
-    if has_rel_features:
-        rel_features = np.zeros((len(data), rel_channels, size, size))
-    else:
-        rel_features = None
+    features = np.zeros((len(data), channels, width, height))
     layout_reprs = np.zeros(
             (len(data), max_layouts, len(MODULE_INDEX) + 7))
     for i, datum in enumerate(data):
         questions[i, max_len-len(datum.question):] = datum.question
         features[i, ...] = datum.load_features()
-        if has_rel_features:
-            rel_features[i, ...] = datum.load_rel_features()
         ### uncomment for use in lstm
         #layout_reprs[i, ...] = featurize_layouts(datum, max_layouts)
     layouts = [d.layouts for d in data]

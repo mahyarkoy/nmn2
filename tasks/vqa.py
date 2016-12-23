@@ -244,7 +244,7 @@ class VqaDatum(Datum):
         image_data -= self.mean
         image_data /= self.std
         channels, width, height = image_data.shape
-        image_data = image_data.reshape((channels, width * height, 1))
+        #image_data = image_data.reshape((channels, width * height, 1))
         return image_data
 
     def load_rel_features(self):

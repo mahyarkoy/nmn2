@@ -19,7 +19,7 @@ model:
   name: nmn
   lstm_hidden: 1000
   layout_hidden: 100
-  att_hidden: 100
+  att_hidden: 1024
   #pred_hidden: 500
   combine_question: false
   att_normalization: local

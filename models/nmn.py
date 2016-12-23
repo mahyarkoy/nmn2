@@ -175,8 +175,10 @@ class MultiplicativeFindModule(Module):
 
         net = apollo_net
 
-        batch_size, channels, image_size, trailing = net.blobs[features].shape
-        assert trailing == 1
+        batch_size, channels, width, height = net.blobs[features].shape
+        image_size = width * height
+        filter_width = 1
+        filter_height = 1
 
         proj_image = "Find_%d_proj_image" % index
         label = "Find_%d_label" % index
@@ -198,16 +200,29 @@ class MultiplicativeFindModule(Module):
         mask_param_bias = "Find_mask_param_bias"
 
         # compute attention mask
+        ### Project images to att_hidden channels
+        net.f(Convolution(
+                proj_image, (1, 1), self.config.att_hidden, bottoms=[image],
+                param_names=[proj_image_param_weight, proj_image_param_bias]))
 
+        ### Create a batch_size*att_hidden*1*1 filter
+        net.f(NumpyData(label, label_data))
+        net.f(Wordvec(
+                label_vec, self.config.att_hidden*filter_width*filter_height, len(MODULE_INDEX),
+                bottoms=[label], param_names=[label_vec_param]))
+        net.blobs[label_vec].reshape((batch_size, self.config.att_hidden, filter_width, filter_height))
+
+        ### Legacy version, with no image projection
+        '''
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
                 label_vec, channels, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
         net.blobs[label_vec].reshape((batch_size, channels, 1, 1))
-        
+        '''
+
         ### word projection L1 regularization
         # net.f(PyL1Loss(word_l1norm, loss_weight=10, bottoms=[label_vec]))
-
 
         if dropout:
             net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
@@ -215,19 +230,28 @@ class MultiplicativeFindModule(Module):
         else:
             label_vec_final = label_vec
 
-        net.f(Tile(tile, axis=2, tiles=image_size, bottoms=[label_vec_final]))
-
-        net.f(Eltwise(prod, "PROD", bottoms=[features, tile]))
-        net.f(Convolution(mask, (1, 1), 1, bottoms=[prod],
+        ### Parametrec convolution of proj_image and label_vec_final
+        ### to classify at each location of image with filter field of view
+        net.f(ParamConvolution(mask, (filter_width, filter_height), 1, 
+                bottoms=[proj_image, label_vec_final],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),
                 param_lr_mults=[0, 0]))
 
+        #net.f(Tile(tile, axis=2, tiles=image_size, bottoms=[label_vec_final]))
+
+        #net.f(Eltwise(prod, "PROD", bottoms=[features, tile]))
+        #net.f(Convolution(mask, (1, 1), 1, bottoms=[prod],
+        #        param_names=[mask_param_weight, mask_param_bias],
+        #        weight_filler=Filler("constant", 1),
+        #        bias_filler=Filler("constant", 0),
+        #        param_lr_mults=[0, 0]))
+
         if self.config.att_normalization == "local":
             net.f(Sigmoid(sigmoid, bottoms=[mask]))
             ### attention L1 regularization
-            net.f(PyL1Loss(att_l1norm, loss_weight=10, bottoms=[sigmoid]))
+            # net.f(PyL1Loss(att_l1norm, loss_weight=10, bottoms=[sigmoid]))
 
             prev = sigmoid
         elif self.config.att_normalization == "global":

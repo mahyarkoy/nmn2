@@ -3,3 +3,4 @@ parse_lexparser_sps2.sh (aka parse_all): runs lexparser on sentences of each des
 parse_sps2.py: parses a given line into a set of sps2 phrases: (is (and beak black))
 create_db_cub.py: generates batches for training, evaluating and testing for nmn model, from cub data set and sps2 parses.
 train_test_split.mat: split from Mohamed on cub.
+zero_shot_calc.py: evaluates the task of zeroshot learning from nmn results.

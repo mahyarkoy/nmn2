@@ -234,13 +234,13 @@ def forward(data, model, config, train, vis):
     ### load batch data
     max_len = max(len(d.question) for d in data)
     max_layouts = max(len(d.layouts) for d in data)
-    channels, width, height = data[0].load_features().shape
+    channels, height, width = data[0].load_features().shape
     #channels, size, trailing = data[0].load_features().shape
     #assert trailing == 1
     rel_features = None
     has_rel_features = data[0].load_rel_features() is not None
     questions = np.ones((len(data), max_len)) * NULL_ID
-    features = np.zeros((len(data), channels, width, height))
+    features = np.zeros((len(data), channels, height, width))
     layout_reprs = np.zeros(
             (len(data), max_layouts, len(MODULE_INDEX) + 7))
     for i, datum in enumerate(data):

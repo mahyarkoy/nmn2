@@ -243,7 +243,7 @@ class VqaDatum(Datum):
             image_data = zdata[zdata.keys()[0]]
         image_data -= self.mean
         image_data /= self.std
-        channels, width, height = image_data.shape
+        channels, height, width = image_data.shape
         #image_data = image_data.reshape((channels, width * height, 1))
         return image_data
 

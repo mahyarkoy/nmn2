@@ -175,10 +175,10 @@ class MultiplicativeFindModule(Module):
 
         net = apollo_net
 
-        batch_size, channels, width, height = net.blobs[features].shape
+        batch_size, channels, height, width = net.blobs[features].shape
         image_size = width * height
-        filter_width = 1
         filter_height = 1
+        filter_width = 1
 
         proj_image = "Find_%d_proj_image" % index
         label = "Find_%d_label" % index
@@ -210,7 +210,7 @@ class MultiplicativeFindModule(Module):
         net.f(Wordvec(
                 label_vec, self.config.att_hidden*filter_width*filter_height, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
-        net.blobs[label_vec].reshape((batch_size, self.config.att_hidden, filter_width, filter_height))
+        net.blobs[label_vec].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
 
         ### Legacy version, with no image projection
         '''
@@ -232,7 +232,7 @@ class MultiplicativeFindModule(Module):
 
         ### Parametrec convolution of proj_image and label_vec_final
         ### to classify at each location of image with filter field of view
-        net.f(ParamConvolution(mask, (filter_width, filter_height), 1, 
+        net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
                 bottoms=[proj_image, label_vec_final],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
@@ -385,7 +385,8 @@ class ExistsModule(Module):
         assert len(bottoms) == 1
         mask = bottoms[0]
         net = apollo_net
-        batch_size, channels, image_size, _ = net.blobs[features].shape
+        batch_size, channels, image_height, image_width = net.blobs[features].shape
+        image_size = image_width*image_height
 
         reduce = "Exists_%d_reduce" % index
         ip = "Exists_%d_ip" % index

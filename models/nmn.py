@@ -1,4 +1,4 @@
-from layers.reinforce import Index, AsLoss, PyL1Loss
+from layers.reinforce import Index, AsLoss, PyL1Loss, PyL1LossWeighted
 from misc.indices import QUESTION_INDEX, MODULE_INDEX, ANSWER_INDEX, UNK_ID
 from misc import util
 from opt import adadelta
@@ -177,8 +177,8 @@ class MultiplicativeFindModule(Module):
 
         batch_size, channels, height, width = net.blobs[features].shape
         image_size = width * height
-        filter_height = 1
-        filter_width = 1
+        filter_height = 5
+        filter_width = 5
 
         proj_image = "Find_%d_proj_image" % index
         label = "Find_%d_label" % index
@@ -223,6 +223,7 @@ class MultiplicativeFindModule(Module):
 
         ### word projection L1 regularization
         # net.f(PyL1Loss(word_l1norm, loss_weight=10, bottoms=[label_vec]))
+        net.f(PyL1LossWeighted(word_l1norm, loss_weight=0.1, dim=(filter_height,filter_width), bottoms=[label_vec]))
 
         if dropout:
             net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
@@ -237,7 +238,8 @@ class MultiplicativeFindModule(Module):
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),
-                param_lr_mults=[0, 0]))
+                param_lr_mults=[0, 0],
+                pad=(filter_height-1)/2))
 
         #net.f(Tile(tile, axis=2, tiles=image_size, bottoms=[label_vec_final]))
 

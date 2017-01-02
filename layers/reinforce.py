@@ -57,7 +57,7 @@ class PyL1LossWeighted(PyLayer):
 
     def forward(self, bottom, top):
         top[0].reshape((1,))
-        if not self.focus:
+        if self.focus is None:
             self.focus = self.get_filter()
         num, channel, height, width = bottom[0].shape
         focus = self.focus.reshape((1,1,height,width))

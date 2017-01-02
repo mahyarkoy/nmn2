@@ -50,18 +50,19 @@ class PyL1LossWeighted(PyLayer):
         self.loss_weight = loss_weight
         self.dim = dim
         self.sigma = sigma
-        self.focus = self.get_filter()
+        self.focus = None
 
     def reshape(self, bottom, top):
         top[0].reshape((1,))
 
     def forward(self, bottom, top):
         top[0].reshape((1,))
-        if len(self.focus.shape) != 4:
-            num, channel, height, width = bottom[0].shape
-            focus = self.focus.reshape((1,1,height,width))
-            focus = np.tile(focus, (num, channel, 1, 1))
-            self.focus = focus
+        if not self.focus:
+            self.focus = self.get_filter()
+        num, channel, height, width = bottom[0].shape
+        focus = self.focus.reshape((1,1,height,width))
+        focus = np.tile(focus, (num, channel, 1, 1))
+    
         top[0].data[...] = self.loss_weight*np.sum(np.absolute(self.focus*bottom[0].data))/bottom[0].shape[0]
 
     def backward(self, top, bottom):

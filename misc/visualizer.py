@@ -4,7 +4,7 @@ import numpy as np
 import os
 import scipy
 
-VIS_DIR = "logs/vis"
+#VIS_DIR = "logs/vis"
 
 class Visualizer:
     def __init__(self):
@@ -16,7 +16,7 @@ class Visualizer:
         self.max_entries = max_entries
         self.next_entry = 0
 
-        self.dest_dir = os.path.join(VIS_DIR, dest)
+        self.dest_dir = dest
         if not os.path.exists(self.dest_dir):
             os.system('mkdir -p '+self.dest_dir)
 

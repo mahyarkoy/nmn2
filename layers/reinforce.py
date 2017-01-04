@@ -49,7 +49,7 @@ class PyL1LossWeighted(PyLayer):
         PyLayer.__init__(self, name, dict(), **kwargs)
         self.loss_weight = loss_weight
         self.dim = dim
-        self.sigma = sigma
+        self.sigma = float(sigma)
         self.focus = None
 
     def reshape(self, bottom, top):
@@ -73,6 +73,6 @@ class PyL1LossWeighted(PyLayer):
         colc = (self.dim[0]-1)/2
         rowc = (self.dim[1]-1)/2
         for index, val in np.ndenumerate(focus):
-            focus[index] = -((index[0] - colc)**2 + (index[1] - rowc)**2 ) / self.sigma**2
-        focus = 1-np.exp(focus)
+            focus[index] = ((index[0] - colc)**2 + (index[1] - rowc)**2 ) / self.sigma**2
+        focus = 1-np.exp(-focus)
         return focus

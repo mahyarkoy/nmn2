@@ -23,26 +23,36 @@ from os import walk
 import os
 
 def main():
+    ### Read config file and set config variables
     config = configure()
-    # Load indices if the load_indices is specified in config
+
+    ### Load indices if the load_indices is specified in config
     if hasattr(config.task, 'load_indices'):
         QUESTION_INDEX.load(config.task.load_indices+'question_index.json')
         MODULE_INDEX.load(config.task.load_indices+'module_index.json')
         ANSWER_INDEX.load(config.task.load_indices+'answer_index.json')
         #MODULE_TYPE_INDEX.load(config.model.load_indices+'module_type_index.json')
+    
+    ### Run main
+    if config.real_time:
+        interactive_main(config)
+    else
+        auto_main(config)
 
+def auto_main(config):
     task = tasks.load_task(config)
     model = models.build_model(config.model, config.opt)
 
     save_indices = config.task.save_indices if hasattr(config.task, 'save_indices') else False
     save_net = config.task.save_net if hasattr(config.task, 'save_net') else 0
     i_epoch = 0
+    logs = config.log_path
     while i_epoch <= config.opt.iters:
         ### Save the indices info only once
         if save_indices:
-            QUESTION_INDEX.save('logs/question_index.json')
-            MODULE_INDEX.save('logs/module_index.json')
-            ANSWER_INDEX.save('logs/answer_index.json')
+            QUESTION_INDEX.save(logs+'/question_index.json')
+            MODULE_INDEX.save(logs+'/module_index.json')
+            ANSWER_INDEX.save(logs+'/answer_index.json')
             save_indices = False
             #MODULE_TYPE_INDEX.save('logs/module_type_index.json')
 
@@ -67,7 +77,7 @@ def main():
         
         print('=====VALID AT ITERATION %d=====' % i_epoch) 
         val_loss, val_acc, val_predictions = \
-                do_iter_external(config.task.load_val, task, model, config, vis=True)
+                do_iter_external(config.task.load_val, task, model, config, vis='single')
 
         logging.info(
                 "%5d  |  %8.3f  %8.3f  |  %8.3f  %8.3f",
@@ -77,25 +87,100 @@ def main():
         
         ### Save the net at each iteration
         if save_net > 0 and i_epoch%save_net == 0:
-            model.save('logs/snapshots/model_%d.h5' % i_epoch)
-            model.opt_state.save('logs/snapshots/model_%d_adastate' % i_epoch)
+            model.save(logs+'/snapshots/model_%d.h5' % i_epoch)
+            model.opt_state.save(logs+'/snapshots/model_%d_adastate' % i_epoch)
 
         ### Store Validation prediction
-        with open("logs/val_predictions_%d.json" % i_epoch, "w") as pred_f:
+        with open(logs+"/val_predictions_%d.json" % i_epoch, "w") as pred_f:
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
         ### TEST RESULTS
         if i_epoch % 5 == 0 and i_epoch != 0:
             test_loss, test_acc, test_predictions = \
-                    do_iter_external(config.task.load_test, task, model, config, vis=False)
+                    do_iter_external(config.task.load_test, task, model, config)
             logging.info(
                     "TEST_%5d  |  %8.3f  |  %8.3f",
                     i_epoch,
                     test_loss, test_acc)
-            with open("logs/test_predictions_%d.json" % i_epoch, "w") as pred_f:
+            with open(logs+"/test_predictions_%d.json" % i_epoch, "w") as pred_f:
                 print >>pred_f, json.dumps(test_predictions)
         
         i_epoch += 1
+
+def data_from_file(fname):
+    batch_list = list()
+    with open(fname, 'r') as df:
+        for l in df:
+            im_name, parse, ann = l.strip().split(';')
+            question = parse.replace('(','').replace(')','')
+            batch_list.append({'image':im_name+'.jpg.npz',
+                               'parse':parse,
+                               'question':question, 'answer': ann,
+                               'cname':0, 'cid':0,
+                               'sent_cid':0, 'sent_cname':'none'})
+    return batch_list
+
+def data_from_commandline():
+    batch_list = list()
+    while True:
+        im_name = raw_input('Enter image name:').strip()
+        if im_name == '_done':
+            break
+        while True:
+            parse = raw_input('Enter sps2 parse:').strip()
+            if parse == '_done'
+                break;
+            ann = raw_input('Enter answer (yes/no):').strip()
+            question = parse.replace('(','').replace(')','')
+            batch_list.append({'image':im_name+'.jpg.npz',
+                               'parse':parse,
+                               'question':question, 'answer': ann,
+                               'cname':0, 'cid':0,
+                               'sent_cid':0, 'sent_cname':'none'})
+    return batch_list
+
+def setup_path(fpath):
+    if os.path.exists(fpath):
+        os.system('rm -r '+fpath)
+    os.system('mkdir -p '+fpath)
+
+def iteractive_main(config):
+    task = tasks.load_task(config)
+    model = models.build_model(config.model, config.opt)
+
+    save_indices = config.task.save_indices if hasattr(config.task, 'save_indices') else False
+    save_net = config.task.save_net if hasattr(config.task, 'save_net') else 0
+    i_epoch = 0
+    batch_id = 0
+
+    temp_data = 'temp_data'
+    temp_log = 'temp_logs'
+    config.log_path = temp_log
+    setup_path(temp_data)
+    setup_path(temp_log)
+
+    load_model = raw_input('Enter path to model:')
+    if config.data_file is None:
+        batch_list = data_from_commandline()
+    else:
+        batch_list = data_from_file(config.data_file)
+    
+    with open(temp_data+'/batch_'+str(batch_id)+'.json', 'w+') as fj:
+        json.dump(batch_list, fj, indent=4)
+
+    print('=====PRE-LOADING THE NET=====')
+    test_loss, test_acc, test_predictions = \
+            do_iter_external(temp_data, task, model, config, train=False, vis=None)
+    model.load(load_model)
+
+    print('=====FORWARDING THE NET=====')
+    test_loss, test_acc, test_predictions = \
+            do_iter_external(temp_data, task, model, config, train=False, vis='all')
+    
+    print('=====RESULTS=====')
+    print("TEST_%5d  |  %8.3f  |  %8.3f" % (i_epoch,test_loss,test_acc))
+    with open(temp_log+"/test_predictions_%d.json" % i_epoch, "w") as pred_f:
+        print >>pred_f, json.dumps(test_predictions)
 
 def configure():
     apollocaffe.set_random_seed(0)
@@ -110,12 +195,21 @@ def configure():
     arg_parser.add_argument(
             "-l", "--log-config", dest="log_config", default="config/log.yml",
             help="log configuration file")
+    arg_parser.add_argument(
+            "-lp", "--log-path", dest="log_path", default="logs",
+            help="output log path.")
+    arg_parser.add_argument(
+            "-r", "--real-time", dest="real_time", default=False, action='store_true'
+            help="real-time mode, uses data-file if specified.")
+    arg_parser.add_argument(
+            "-f", "--data-file", dest="data_file", default=None,
+            help="data file to read batch_data.")
 
     args = arg_parser.parse_args()
     config_name = args.config.split("/")[-1].split(".")[0]
 
     with open(args.log_config) as log_config_f:
-        log_filename = "logs/%s.log" % config_name
+        log_filename = args.log_path+"/%s.log" % config_name
         log_config = yaml.load(log_config_f)
         log_config["handlers"]["fileHandler"]["filename"] = log_filename
         logging.config.dictConfig(log_config)
@@ -125,6 +219,10 @@ def configure():
 
     assert not hasattr(config, "name")
     config.name = config_name
+
+    config.real_time = args.real_time
+    config.data_file = args.data_file
+    config.log_path = args.log_path
 
     return config
 
@@ -166,7 +264,7 @@ def do_iter(task_set, model, config, train=False, vis=False):
     acc /= n_batches
     return loss, acc, predictions
 
-def do_iter_external(pathname, task, model, config, train=False, vis=False):
+def do_iter_external(pathname, task, model, config, train=False, vis=None):
     loss = 0.0
     acc = 0.0
     predictions = []
@@ -174,7 +272,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
     data_size = 0
     ### Read batches from file
     if vis:
-        visualizer.begin(pathname.split('/')[-1], 100)
+        visualizer.begin(config.log_path+'/vis/'+pathname.split('/')[-1], 100)
 
     for (pname, dnames, fnames) in walk(pathname):
         for fn in fnames:
@@ -191,8 +289,15 @@ def do_iter_external(pathname, task, model, config, train=False, vis=False):
             acc += batch_acc
             predictions += batch_preds
             n_batches += 1
-            if vis:
-                visualize(batch_data, model)
+
+            if vis == 'single':
+                i_datum = np.random.choice(len(batch_data))
+                datum = batch_data[i_datum]
+                visualize(i_datum, datum, model)
+            elif vis == 'all':
+                for i_datum, datum in enumerate(batch_data):
+                    visualize(i_datum, datum, model)
+
             if hasattr(config.task, 'debug'):
                 if n_batches >= config.task.debug:
                     break
@@ -312,8 +417,7 @@ def backward(data, model, config, train, vis):
 
     return loss
 
-def visualize(batch_data, model):
-    i_datum = np.random.choice(len(batch_data))
+def visualize(i_datum, datum, model):
     att_blobs = list()
     att_ids = list()
     mod_layout_choice = model.module_layout_choices[i_datum]
@@ -339,15 +443,14 @@ def visualize(batch_data, model):
     if len(att_blobs) == 0:
         return
 
-    datum = batch_data[i_datum]
     #question = " ".join([QUESTION_INDEX.get(w) for w in datum.question[1:-1]]),
     preds = model.prediction_data[i_datum,:]
     top = np.argsort(preds)
     top_answers = list(reversed([ANSWER_INDEX.get(p) for p in top]))
-    parse = batch_data[i_datum].parses
-    im_path = batch_data[i_datum].input_image
-    im_cid = batch_data[i_datum].im_cid
-    sent_cid = batch_data[i_datum].sent_cid
+    parse = datum.parses
+    im_path = datum.input_image
+    im_cid = datum.im_cid
+    sent_cid = datum.sent_cid
 
     att_data_list = list()
     fields = list()

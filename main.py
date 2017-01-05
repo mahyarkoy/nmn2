@@ -36,7 +36,7 @@ def main():
     ### Run main
     if config.real_time:
         interactive_main(config)
-    else
+    else:
         auto_main(config)
 
 def auto_main(config):
@@ -111,12 +111,12 @@ def data_from_file(fname):
     batch_list = list()
     with open(fname, 'r') as df:
         for l in df:
-            im_name, parse, ann = l.strip().split(';')
+            cname, im_name, parse, ann = l.strip().split(';')
             question = parse.replace('(','').replace(')','')
             batch_list.append({'image':im_name+'.jpg.npz',
                                'parse':parse,
                                'question':question, 'answer': ann,
-                               'cname':0, 'cid':0,
+                               'cname':cname, 'cid':int(cname.split('.')[0]),
                                'sent_cid':0, 'sent_cname':'none'})
     return batch_list
 
@@ -126,16 +126,17 @@ def data_from_commandline():
         im_name = raw_input('Enter image name:').strip()
         if im_name == '_done':
             break
+        cname = raw_input('Enter image class name:').strip()
         while True:
             parse = raw_input('Enter sps2 parse:').strip()
-            if parse == '_done'
+            if parse == '_done':
                 break;
             ann = raw_input('Enter answer (yes/no):').strip()
             question = parse.replace('(','').replace(')','')
             batch_list.append({'image':im_name+'.jpg.npz',
                                'parse':parse,
                                'question':question, 'answer': ann,
-                               'cname':0, 'cid':0,
+                               'cname':cname, 'cid':int(cname.split('.')[0]),
                                'sent_cid':0, 'sent_cname':'none'})
     return batch_list
 
@@ -144,7 +145,7 @@ def setup_path(fpath):
         os.system('rm -r '+fpath)
     os.system('mkdir -p '+fpath)
 
-def iteractive_main(config):
+def interactive_main(config):
     task = tasks.load_task(config)
     model = models.build_model(config.model, config.opt)
 
@@ -199,7 +200,7 @@ def configure():
             "-lp", "--log-path", dest="log_path", default="logs",
             help="output log path.")
     arg_parser.add_argument(
-            "-r", "--real-time", dest="real_time", default=False, action='store_true'
+            "-r", "--real-time", dest="real_time", default=False, action='store_true',
             help="real-time mode, uses data-file if specified.")
     arg_parser.add_argument(
             "-f", "--data-file", dest="data_file", default=None,

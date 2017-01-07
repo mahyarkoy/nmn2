@@ -206,10 +206,16 @@ class MultiplicativeFindModule(Module):
         label_vec_param = "Find_label_vec_param"
         mask_param_weight = "Find_mask_param_weight"
         mask_param_bias = "Find_mask_param_bias"
-        label_att_param = "Find_label_att_param"
-        label_att_param_1 = "Find_label_att_param_1"
-        label_class_param = "Find_label_class_param"
-        label_class_param_1 = "Find_label_class_param_1"
+        
+        label_att_param_weights = "Find_label_att_param_weights"
+        label_att_param_bias = "Find_label_att_param_bias"
+        label_att_param_weights_1 = "Find_label_att_param_weights_1"
+        label_att_param_bias_1 = "Find_label_att_param_bias_1"
+        
+        label_class_param_weights = "Find_label_class_param_weights"
+        label_class_param_bias = "Find_label_class_param_bias"
+        label_class_param_weights_1 = "Find_label_class_param_weights_1"
+        label_class_param_bias_1 = "Find_label_class_param_bias_1"        
 
         # compute attention mask
         ### Project images to att_hidden channels

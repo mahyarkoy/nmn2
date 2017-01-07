@@ -230,10 +230,12 @@ class MultiplicativeFindModule(Module):
                 label_vec, 50, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
         net.f(InnerProduct(label_class_1, self.config.att_hidden*filter_width*filter_height,
-                            bottoms=[label_vec], param_names=[label_class_param_1]))
+                            bottoms=[label_vec],
+                            param_names=[label_class_param_weights_1, label_class_param_bias_1]))
         net.f(TanH(label_class_2, bottoms=[label_class_1]))
         net.f(InnerProduct(label_class, self.config.att_hidden*filter_width*filter_height,
-                            bottoms=[label_class_2], param_names=[label_class_param]))
+                            bottoms=[label_class_2],
+                            param_names=[label_class_param_weights, label_class_param_bias]))
         net.blobs[label_class].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
 
 
@@ -249,11 +251,13 @@ class MultiplicativeFindModule(Module):
         '''
         net.f(InnerProduct(
                 label_att_1, filter_width*filter_height,
-                bottoms=[label_vec], param_names=[label_att_param_1]))
+                bottoms=[label_vec],
+                param_names=[label_att_param_weights_1, label_att_param_bias_1]))
         net.f(TanH(label_att_2, bottoms=[label_att_1]))
         net.f(InnerProduct(
                 label_att, filter_width*filter_height,
-                bottoms=[label_att_2], param_names=[label_att_param]))
+                bottoms=[label_att_2],
+                param_names=[label_att_param_weights, label_att_param_bias]))
 
         net.blobs[label_att].reshape((batch_size,1,filter_height,filter_width))
         net.f(Sigmoid(label_att_norm, bottoms=[label_att]))

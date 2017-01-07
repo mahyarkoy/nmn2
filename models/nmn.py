@@ -177,8 +177,8 @@ class MultiplicativeFindModule(Module):
 
         batch_size, channels, height, width = net.blobs[features].shape
         image_size = width * height
-        filter_height = 5
-        filter_width = 5
+        filter_height = 1
+        filter_width = 1
 
         proj_image = "Find_%d_proj_image" % index
         label = "Find_%d_label" % index
@@ -192,12 +192,24 @@ class MultiplicativeFindModule(Module):
         copy = "Find_%d_copy" % index
         word_l1norm = "Find_%d_word_L1_Norm" % index
         att_l1norm = "Find_%d_att_L1_Norm" % index
+        label_att = "Find_%d_label_att" % index
+        label_att_1 = "Find_%d_label_att_1" % index
+        label_att_2 = "Find_%d_label_att_2" % index
+        label_att_norm = "Find_%d_label_att_norm" % index
+        label_att_mask = "Find_%d_label_att_mask" % index
+        label_class = "Find_%d_label_class" % index
+        label_class_1 = "Find_%d_label_class_1" % index
+        label_class_2 = "Find_%d_label_class_2" % index 
 
         proj_image_param_weight = "Find_proj_image_param_weight"
         proj_image_param_bias = "Find_proj_image_param_bias"
         label_vec_param = "Find_label_vec_param"
         mask_param_weight = "Find_mask_param_weight"
         mask_param_bias = "Find_mask_param_bias"
+        label_att_param = "Find_label_att_param"
+        label_att_param_1 = "Find_label_att_param_1"
+        label_class_param = "Find_label_class_param"
+        label_class_param_1 = "Find_label_class_param_1"
 
         # compute attention mask
         ### Project images to att_hidden channels
@@ -206,11 +218,24 @@ class MultiplicativeFindModule(Module):
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
         ### Create a batch_size*att_hidden*1*1 filter
+        '''
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
                 label_vec, self.config.att_hidden*filter_width*filter_height, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
         net.blobs[label_vec].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
+        '''
+        net.f(NumpyData(label, label_data))
+        net.f(Wordvec(
+                label_vec, 50, len(MODULE_INDEX),
+                bottoms=[label], param_names=[label_vec_param]))
+        net.f(InnerProduct(label_class_1, self.config.att_hidden*filter_width*filter_height,
+                            bottoms=[label_vec], param_names=[label_class_param_1]))
+        net.f(TanH(label_class_2, bottoms=[label_class_1]))
+        net.f(InnerProduct(label_class, self.config.att_hidden*filter_width*filter_height,
+                            bottoms=[label_class_2], param_names=[label_class_param]))
+        net.blobs[label_class].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
+
 
         ### Legacy version, with no image projection
         '''
@@ -220,16 +245,33 @@ class MultiplicativeFindModule(Module):
                 bottoms=[label], param_names=[label_vec_param]))
         net.blobs[label_vec].reshape((batch_size, channels, 1, 1))
         '''
+        ### Create an attention mask over word classifier weights
+        '''
+        net.f(InnerProduct(
+                label_att_1, filter_width*filter_height,
+                bottoms=[label_vec], param_names=[label_att_param_1]))
+        net.f(TanH(label_att_2, bottoms=[label_att_1]))
+        net.f(InnerProduct(
+                label_att, filter_width*filter_height,
+                bottoms=[label_att_2], param_names=[label_att_param]))
 
-        ### word projection L1 regularization
+        net.blobs[label_att].reshape((batch_size,1,filter_height,filter_width))
+        net.f(Sigmoid(label_att_norm, bottoms=[label_att]))
+        net.f(Tile(label_att_mask, axis=1, tiles=self.config.att_hidden, bottoms=[label_att_norm]))
+        '''
+
+        ### Word projection L1 regularization
         # net.f(PyL1Loss(word_l1norm, loss_weight=10, bottoms=[label_vec]))
-        net.f(PyL1LossWeighted(word_l1norm, loss_weight=0.01, sigma=2, dim=(filter_height,filter_width), bottoms=[label_vec]))
+        #net.f(PyL1LossWeighted(word_l1norm, loss_weight=0.01, sigma=1, dim=(filter_height,filter_width), bottoms=[label_att_mask]))
 
         if dropout:
             net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
             label_vec_final = label_vec_dropout
         else:
             label_vec_final = label_vec
+
+        ### Multiply label attention mask with label classifying weights
+        #net.f(Eltwise(label_filter, 'PROD', bottoms=[label_vec_final, label_att_mask]))
 
         ### Parametrec convolution of proj_image and label_vec_final
         ### to classify at each location of image with filter field of view

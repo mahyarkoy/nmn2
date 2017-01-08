@@ -275,10 +275,10 @@ class MultiplicativeFindModule(Module):
         #net.f(PyL1LossWeighted(word_l1norm, loss_weight=0.01, sigma=1, dim=(filter_height,filter_width), bottoms=[label_att_mask]))
 
         if dropout:
-            net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
+            net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_class]))
             label_vec_final = label_vec_dropout
         else:
-            label_vec_final = label_vec
+            label_vec_final = label_class
 
         ### Multiply label attention mask with label classifying weights
         #net.f(Eltwise(label_filter, 'PROD', bottoms=[label_vec_final, label_att_mask]))

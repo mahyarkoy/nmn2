@@ -12,12 +12,12 @@ import json
 import glob
 import os
 
-classes_path = '/home/mahyarkoy/classes.txt'
-im_class_path = '/home/mahyarkoy/image_class_labels.txt'
-im_path = '/home/mahyarkoy/images.txt'
-split_path = '/home/mahyarkoy/train_test_split.mat'
-parse_path = '/home/mahyarkoy/Downloads/CVPRdata/sps2'
-batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches4'
+classes_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/classes.txt'
+im_class_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/image_class_labels.txt'
+im_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images.txt'
+split_path = '/media/evl/Public/Mahyar/Data/CVPRdata/splits/train_test_split.mat'
+parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2'
+batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches5'
 
 freq_dict = defaultdict(lambda: defaultdict(int))
 train_idf_dict = dict()
@@ -89,17 +89,22 @@ def create_db_cub():
     test_set = list()
     for d in train_db:
         for i in range(len(d['im_ids'])):
-            train_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i], 'cid':d['id'],
-                              'cname':d['name']})
+            train_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i], 'sname':d['im_names'][i],
+                              'cid':d['id'], 'cname':d['name']})
+            train_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i]+'_fliph', 'sname':d['im_names'][i],
+                              'cid':d['id'], 'cname':d['name']})
+
     for d in test_db:
         for i in range(len(d['im_ids'])):
-            test_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i], 'cid':d['id'],
-                              'cname':d['name']})
-    '''calc_freq()
+            test_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i], 'sname':d['im_names'][i],
+                             'cid':d['id'], 'cname':d['name']})
+            test_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i]+'fliph', 'sname':d['im_names'][i],
+                             'cid':d['id'], 'cname':d['name']})
+    calc_freq()
     global train_idf_dict
     global test_idf_dict
     train_idf_dict = calc_inverse_freq(train_cid_list)
-    test_idf_dict = calc_inverse_freq(test_cid_list)'''
+    test_idf_dict = calc_inverse_freq(test_cid_list)
     return train_set, test_set
     
 ###=======================NEG SAMPLING=========================###
@@ -127,7 +132,7 @@ def normalize_features(pathname, data):
     std = np.sqrt(var)
 
     # Save the mean std to file for future use (***hardcode***)
-    np.savez('/home/mahyarkoy/normalizer_data.npz', mean=mean, std=std)    
+    np.savez('/media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data_aug.npz', mean=mean, std=std)    
       
 def shuffle_list(parse_list):
     res = list(parse_list)
@@ -135,7 +140,7 @@ def shuffle_list(parse_list):
     return res
 
 def weighted_shuffle(parse_list, ci, idf_list=None):
-    tf_thresh = 10
+    tf_thresh = 5
     score = [freq_dict[ci][x[0]] for x in parse_list]        
     if idf_list:
         print '=====idf'
@@ -145,14 +150,14 @@ def weighted_shuffle(parse_list, ci, idf_list=None):
         sc = tf*idf
     else:
         sc = np.array(score)
-    pr = sc + 0.01
+    pr = sc + 0.001
     pr /= float(np.sum(pr))
     choice_ids = np.random.choice(np.arange(len(parse_list)), len(parse_list), replace=False, p=pr)
     choices = [parse_list[x] for x in choice_ids]
     return choices
 
 def sort_list(parse_list, ci, idf_list=None):
-    tf_thresh = 10
+    tf_thresh = 5
     score = [freq_dict[ci][x[0]] for x in parse_list]        
     if idf_list:
         print '=====idf'
@@ -167,7 +172,7 @@ def sort_list(parse_list, ci, idf_list=None):
     return sort_res
 
 def read_parse(d, idf_list = None):
-    dn = d['name']
+    dn = d['sname']
     parses = list()
     sents = list()
     parsef = parse_path + '/' + dn + '.sps2'
@@ -266,8 +271,9 @@ def find_negs_full(data, parses, idf_list = None):
                 choices = weighted_shuffle(parses[dc], ci)
             else:
                 choices = parses[dc]
-            min_cost = 10
+
             for pc, pcv in enumerate(choices):
+                min_cost = 10
                 if len(negs[di]) >= NEG_SAMPLE:
                     break;
                 if pcv[0] in except_list:
@@ -404,8 +410,8 @@ if __name__ == '__main__':
     batch_size = 10
     num_itr = 100
     ### Read train and test set data
-    train_set, test_set = create_db_cub()
-    
+    train_set, test_set = create_db_cub()    
+    '''
     ### All adjectives
     adj_set = set()
     parse_set = set()
@@ -423,9 +429,10 @@ if __name__ == '__main__':
             print >>pf, p
         for a in adj_set:
             print >>af, a
-            
+    '''
+    '''    
     ### Make Validation batches
-    '''fpath_val = batch_path + '/val'
+    fpath_val = batch_path + '/val'
     data_val = list(test_set)
     np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_val)
@@ -444,9 +451,8 @@ if __name__ == '__main__':
         fpath_train = batch_path + '/itr_' + str(itr)
         os.system('mkdir ' + fpath_train)
         make_batch_train(data_train, batch_size, fpath_train, train_idf_dict)
-    #normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs', train_set)
-
-'''
+    '''
+    normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug', train_set)
 
 
 

@@ -233,7 +233,7 @@ class MultiplicativeFindModule(Module):
         '''
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
-                label_vec, 50, len(MODULE_INDEX),
+                label_vec, 256, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
         net.f(InnerProduct(label_class_1, self.config.att_hidden*filter_width*filter_height,
                             bottoms=[label_vec],

@@ -2,12 +2,17 @@ import sys
 import re
 from collections import defaultdict
 import argparse
+import spell_check
+import nltk.stem.wordnet as wn
+
+lem = wn.WordNetLemmatizer()
 
 parse_re = re.compile(r'([a-zA-Z0-9_:]+)\(([-a-zA-Z0-9/]+), ([-a-zA-Z0-9/]+)\)')
 parse_sent = re.compile(r'(\w(?:[-,a-zA-Z0-9_]|\s)+$)')
 parse_nn = re.compile(r'NN.*')
 parse_jj = re.compile(r'JJ.*')
 parse_nmod = re.compile(r'nmod:\w+')
+hyphoned = re.compile(r'[a-z]+-[a-z]+')
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument(
@@ -69,18 +74,39 @@ class ParseDB:
 		#print(self.words)
 		return self.sent
 
+	def preproc_rels(self, rel):
+		rel_list = list()
+		for w in rel:
+			hm = hyphoned.match(w)
+			if hm:
+				wl, wr = hm.group(0).split('-')
+				wr = lem.lemmatize(wr,'v')
+				rel_list += [wr, wl]
+			else:
+				rel_list.append(w)
+
+		for w_i, w in enumerate(rel_list):
+			rel_list[w_i] = spell_check.correct(w)
+
+		return tuple(rel_list)
+
 	def save_to_file(self, filename):
 		rel_form2 = '(is (and %s %s))'
 		rel_form3 = '(is (and %s %s %s))'
 		### Generate parses
 		with open(filename+'.sps2', 'a+') as spf, open(filename+'.sent', 'a+') as sentf:
 			for r in self.rels:
-				if len(r) == 2:
-					s = rel_form2 % r
-				elif len(r) == 3:
-					s = rel_form3 % r
-				else:
-					s = '(is _thing)'
+				r = self.preproc_rels(r)
+				rs = ' '.join(r)
+				s = '(is (and '+rs+'))'
+				#if len(r) == 2:
+				#	s = rel_form2 % r
+				#elif len(r) == 3:
+				#	s = rel_form3 % r
+				#elif len(r) == 4:
+				#	s = rel_form3 % r
+				#else:
+				#	s = '(is _thing)'
 				print >>spf, s
 				print >>sentf, self.sent
 

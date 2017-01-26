@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 
 from collections import namedtuple
+from misc.indices import MODULE_INDEX
 
 class Layout:
     def __init__(self, modules, labels):
@@ -26,10 +27,10 @@ class Layout:
             ihead, itail = labels[0], labels[1:]
             mod_name = str(mhead) # mhead.__name__
             below = [self.__str_helper(m, i) for m, i in zip(mtail, itail)]
-            return "(%s[%s] %s)" % (mod_name, ihead, " ".join(below))
+            return "(%s[%s] %s)" % (mod_name, MODULE_INDEX.get(ihead), " ".join(below))
 
         mod_name = str(modules)
-        return "%s[%s]" % (mod_name, labels)
+        return "%s[%s]" % (mod_name, MODULE_INDEX.get(labels))
 
 class Datum:
     def __init__(self):

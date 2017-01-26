@@ -466,6 +466,7 @@ def visualize(i_datum, datum, model):
     #chosen_parse = datum.parses[model.layout_ids[i_datum]]
     #fields.append(im_cid)
     fields.append(parse)
+    fields.append(str(datum.layouts[0]))
     #fields.append(sent_cid)
     #fields.append(", ".join(top_answers))
     fields.append('TOP:'+top_answers[0])

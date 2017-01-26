@@ -17,7 +17,7 @@ im_class_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_201
 im_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images.txt'
 split_path = '/media/evl/Public/Mahyar/Data/CVPRdata/splits/train_test_split.mat'
 parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2'
-batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches5'
+batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches6'
 
 freq_dict = defaultdict(lambda: defaultdict(int))
 train_idf_dict = dict()
@@ -53,6 +53,13 @@ def calc_inverse_freq(cid_list):
         idf_dict[ps] = np.log(len(cid_list)/float(count)) if count > 0 else 0
     
     return idf_dict
+
+def save_split(fname, data):
+    temp = '%s %d'
+    with open(fname, 'w+') as fo:
+        for d in data:
+            print>> fo, temp % (d['name'],d['cid'])
+    return True
                     
 def create_db_cub():
     im_db = list()
@@ -98,13 +105,18 @@ def create_db_cub():
         for i in range(len(d['im_ids'])):
             test_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i], 'sname':d['im_names'][i],
                              'cid':d['id'], 'cname':d['name']})
-            test_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i]+'fliph', 'sname':d['im_names'][i],
-                             'cid':d['id'], 'cname':d['name']})
-    calc_freq()
-    global train_idf_dict
-    global test_idf_dict
-    train_idf_dict = calc_inverse_freq(train_cid_list)
-    test_idf_dict = calc_inverse_freq(test_cid_list)
+            #test_set.append({'id':d['im_ids'][i], 'name': d['im_names'][i]+'_fliph', 'sname':d['im_names'][i],
+            #                 'cid':d['id'], 'cname':d['name']})
+    
+    #save_split('/home/mahyar/cub_train_set_hard.txt', train_set)
+    #save_split('/home/mahyar/cub_test_set_hard.txt', test_set)
+    #print 'Splits are saved.'
+
+    #calc_freq()
+    #global train_idf_dict
+    #global test_idf_dict
+    #train_idf_dict = calc_inverse_freq(train_cid_list)
+    #test_idf_dict = calc_inverse_freq(test_cid_list)
     return train_set, test_set
     
 ###=======================NEG SAMPLING=========================###
@@ -132,7 +144,7 @@ def normalize_features(pathname, data):
     std = np.sqrt(var)
 
     # Save the mean std to file for future use (***hardcode***)
-    np.savez('/media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data_aug.npz', mean=mean, std=std)    
+    np.savez('/media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data_aug_hard.npz', mean=mean, std=std)    
       
 def shuffle_list(parse_list):
     res = list(parse_list)
@@ -413,24 +425,37 @@ if __name__ == '__main__':
     train_set, test_set = create_db_cub()    
     '''
     ### All adjectives
-    adj_set = set()
-    parse_set = set()
+    #adj_set = set()
+    #parse_set = set()
+    parse_list = list()
+    adj_list = list()
+    sent_list = list()
+    freq_list = list()
     for d in train_set:
         parse_tuples = read_parse(d)
         for ps, sent in parse_tuples:
             sps = ps.replace('(','').replace(')','').split()
             if ps not in except_list:
-                parse_set.update([ps])
-                if len(sps) > 3:
-                    adj_set.update([sps[-1]])
+                #parse_set.update([ps])
+                for loc in range(len(sps)):
+                    if loc > 1:
+                        term = sps[loc]
+                        if term not in adj_list:
+                            adj_list.append(term)
+                            sent_list.append(sent)
+                            parse_list.append(ps)
+                            freq_list.append(1)
+                        else:
+                            freq_list[adj_list.index(term)] += 1
     
-    with open('set_train_parses.sps','w+') as pf, open('set_train_adj.txt', 'w+') as af:    
-        for p in parse_set:
+    with open('set_train_parses.sps','w+') as pf, open('set_train_adj.txt', 'w+') as af, open('set_train_sent.txt', 'w+') as sf:    
+        for p in parse_list:
             print >>pf, p
-        for a in adj_set:
-            print >>af, a
-    '''
-    '''    
+        for a, f in zip(adj_list, freq_list):
+            print >>af, ' '.join([a, str(f)])
+        for s in sent_list:
+            print >>sf, s
+    '''  
     ### Make Validation batches
     fpath_val = batch_path + '/val'
     data_val = list(test_set)
@@ -451,8 +476,7 @@ if __name__ == '__main__':
         fpath_train = batch_path + '/itr_' + str(itr)
         os.system('mkdir ' + fpath_train)
         make_batch_train(data_train, batch_size, fpath_train, train_idf_dict)
-    '''
-    normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug', train_set)
+    #normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug', train_set)
 
 
 

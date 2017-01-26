@@ -183,6 +183,7 @@ class MultiplicativeFindModule(Module):
         proj_image = "Find_%d_proj_image" % index
         label = "Find_%d_label" % index
         label_vec = "Find_%d_label_vec" % index
+        label_vec_bias = "Find_%d_label_vec_bias" % index
         label_vec_dropout = "Find_%d_label_vec_dropout" % index
         tile = "Find_%d_tile" % index
         prod = "Find_%d_prod" % index
@@ -204,6 +205,7 @@ class MultiplicativeFindModule(Module):
         proj_image_param_weight = "Find_proj_image_param_weight"
         proj_image_param_bias = "Find_proj_image_param_bias"
         label_vec_param = "Find_label_vec_param"
+        label_vec_param_bias = "Find_label_vec_param_bias"
         mask_param_weight = "Find_mask_param_weight"
         mask_param_bias = "Find_mask_param_bias"
         
@@ -223,14 +225,18 @@ class MultiplicativeFindModule(Module):
                 proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
-        ### Create a batch_size*att_hidden*1*1 filter
-        '''
+        ### Create a batch_size*att_hidden*filter_h*filter_w filter
+        ## Wordvec construction
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
                 label_vec, self.config.att_hidden*filter_width*filter_height, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
-        net.blobs[label_vec].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
+        net.f(Wordvec(
+                label_vec_bias, 1, len(MODULE_INDEX),
+                bottoms=[label], param_names=[label_vec_param_bias]))
+        label_class = label_vec
         '''
+        ## Projection of word_vec to hidden layer
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
                 label_vec, 256, len(MODULE_INDEX),
@@ -242,8 +248,9 @@ class MultiplicativeFindModule(Module):
         net.f(InnerProduct(label_class, self.config.att_hidden*filter_width*filter_height,
                             bottoms=[label_class_2],
                             param_names=[label_class_param_weights, label_class_param_bias]))
+        '''
         net.blobs[label_class].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
-
+        net.blobs[label_vec_bias].reshape((batch_size, 1, 1, 1))
 
         ### Legacy version, with no image projection
         '''
@@ -285,8 +292,9 @@ class MultiplicativeFindModule(Module):
 
         ### Parametrec convolution of proj_image and label_vec_final
         ### to classify at each location of image with filter field of view
+        ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[proj_image, label_vec_final],
+                bottoms=[proj_image, label_vec_final, label_vec_bias],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),

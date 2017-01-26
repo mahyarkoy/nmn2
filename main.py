@@ -43,7 +43,7 @@ def auto_main(config):
     task = tasks.load_task(config)
     model = models.build_model(config.model, config.opt)
 
-    save_indices = config.task.save_indices if hasattr(config.task, 'save_indices') else False
+    save_indices = config.task.save_indices if hasattr(config.task, 'save_indices') and config.task.save_indices else False
     save_net = config.task.save_net if hasattr(config.task, 'save_net') else 0
     i_epoch = 0
     logs = config.log_path

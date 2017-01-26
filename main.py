@@ -104,6 +104,17 @@ def auto_main(config):
                     test_loss, test_acc)
             with open(logs+"/test_predictions_%d.json" % i_epoch, "w") as pred_f:
                 print >>pred_f, json.dumps(test_predictions)
+
+        ### TEST_TRAIN RESULTS
+        if i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
+            tt_loss, tt_acc, tt_predictions = \
+                    do_iter_external(config.task.load_test_train, task, model, config)
+            logging.info(
+                    "TEST_TRAIN_%5d  |  %8.3f  |  %8.3f",
+                    i_epoch,
+                    tt_loss, tt_acc)
+            with open(logs+"/test_train_predictions_%d.json" % i_epoch, "w") as pred_f:
+                print >>pred_f, json.dumps(tt_predictions)
         
         i_epoch += 1
 

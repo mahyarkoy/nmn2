@@ -9,18 +9,21 @@ import numpy as np
 import json
 from collections import defaultdict
 
-jdata_path = '/media/evl/Public/Mahyar/Data/CVPRdata/results27/logs_add/test_predictions_10.json'
+jdata_path = '/media/evl/Public/Mahyar/Data/CVPRdata/results25/logs/test_predictions_10.json'
 im_db = defaultdict(lambda: defaultdict(list))
 ann_db = dict()
 pred_db = dict()
 
 def find_prediction(pred):
     top = 1    
+    #top_choice = 15
     res = list()
     pred_list = pred.items()    
     for c, val in pred_list:
+        #use top_choices to filter out noise, not useful currently
+        val.sort()
         vec = np.asarray(val)
-        res.append(np.mean(vec))
+        res.append(np.prod(vec))
     cid = np.argsort(res)[::-1][0:top]
     #cid = np.random.choice(len(res),top)
     out = [pred_list[x][0] for x in cid.tolist()]    

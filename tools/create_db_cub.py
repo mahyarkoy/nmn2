@@ -16,8 +16,9 @@ classes_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011
 im_class_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/image_class_labels.txt'
 im_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images.txt'
 split_path = '/media/evl/Public/Mahyar/Data/CVPRdata/splits/train_test_split.mat'
-parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2'
-batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches6'
+parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2_clean'
+batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches8'
+output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches8'
 
 freq_dict = defaultdict(lambda: defaultdict(int))
 train_idf_dict = dict()
@@ -112,11 +113,11 @@ def create_db_cub():
     #save_split('/home/mahyar/cub_test_set_hard.txt', test_set)
     #print 'Splits are saved.'
 
-    #calc_freq()
-    #global train_idf_dict
-    #global test_idf_dict
-    #train_idf_dict = calc_inverse_freq(train_cid_list)
-    #test_idf_dict = calc_inverse_freq(test_cid_list)
+    calc_freq()
+    global train_idf_dict
+    global test_idf_dict
+    train_idf_dict = calc_inverse_freq(train_cid_list)
+    test_idf_dict = calc_inverse_freq(test_cid_list)
     return train_set, test_set
     
 ###=======================NEG SAMPLING=========================###
@@ -386,7 +387,8 @@ def make_batch_val(data, batch_size, fpath):
             json.dump(batch_set, fj, indent=4)
         batch_id += 1
 
-def make_batch_test(data, batch_size, fpath):
+def make_batch_test(data, batch_size, fpath, idf_dict, sample_size=0):
+    sample_size = len(data) if sample_size==0 else sample_size
     batch_id = 0
     class_parses = defaultdict(dict)
     class_parses_sorted = defaultdict(list)
@@ -395,13 +397,13 @@ def make_batch_test(data, batch_size, fpath):
         for ps in parses:
             class_parses[d['cid']][ps[0]] = ps[1]
     for c in class_parses.keys():
-        parses_sorted = sort_list(class_parses[c].items(), c, test_idf_dict)
+        parses_sorted = sort_list(class_parses[c].items(), c, idf_dict)
         for ps in parses_sorted:
             if ps[0] not in except_list:
                 class_parses_sorted[c].append(ps)
             if len(class_parses_sorted[c]) >= TEST_SAMPLE:
                 break
-        for batch_head in range(0, len(data), batch_size):
+        for batch_head in range(0, sample_size, batch_size):
             print('AT BATCH >> '+ str(batch_id))
             batch_end = batch_head + batch_size
             batch_data = data[batch_head:batch_end]
@@ -417,6 +419,8 @@ def make_batch_test(data, batch_size, fpath):
             with open(fpath+'/batch_'+str(batch_id)+'.json', 'w+') as fj:
                 json.dump(batch_set, fj, indent=4)
             batch_id += 1
+
+    return class_parses_sorted
 
 if __name__ == '__main__':
     batch_size = 10
@@ -462,12 +466,25 @@ if __name__ == '__main__':
     np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_val)
     make_batch_train(data_val, batch_size, fpath_val, test_idf_dict)   
-    ### Make Zero shot compare all batches
+    
+    ### Make Zero shot compare all batches for test data
     fpath_test = batch_path + '/test'
     data_test = list(test_set)
     #np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_test)
-    make_batch_test(data_test, batch_size*4, fpath_test)
+    class_parses = make_batch_test(data_test, batch_size*4, fpath_test, test_idf_dict)
+    with open(output_path + '/test_class_parses.json', 'w+') as jf:
+        json.dump(class_parses, jf, indent=4)
+    
+    ### Make Zero shot compare all batches for training data
+    fpath_test_train = batch_path + '/test_train'
+    data_test_train = list(train_set)
+    np.random.shuffle(data_test_train)
+    os.system('mkdir '+ fpath_test_train)
+    class_parses = make_batch_test(data_test_train, batch_size*4, fpath_test_train, train_idf_dict, sample_size=1500)
+    with open(output_path + '/train_class_parses.json', 'w+') as jf:
+        json.dump(class_parses, jf, indent=4)
+    
     ### Make Training batches
     data_train = list(train_set)
     for itr in range(num_itr):

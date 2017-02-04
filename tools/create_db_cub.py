@@ -4,29 +4,30 @@ Created on Thu Oct 20 16:40:33 2016
 
 @author: mahyarkoy
 """
-
+import ex_generator as exgen
 import scipy.io as sio
 from collections import defaultdict
 import numpy as np
 import json
 import glob
 import os
+import random
 
 classes_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/classes.txt'
 im_class_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/image_class_labels.txt'
 im_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images.txt'
 split_path = '/media/evl/Public/Mahyar/Data/CVPRdata/splits/train_test_split.mat'
-parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2_clean'
-batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches8'
-output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches8'
+parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2'
+batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches9'
+output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches9'
+log_path = '/media/evl/Public/Mahyar/Data/CVPRdata/rand_logs'
 
 freq_dict = defaultdict(lambda: defaultdict(int))
 train_idf_dict = dict()
 test_idf_dict = dict()
-
 except_list = ['(is (and this bird))', '(is (and bird particular))', '(is _thing)']
-
 ref_db = list()
+clusters = exgen.Clusters('cluster_info.pk')
 
 def calc_freq():
     with open(classes_path) as cf: 
@@ -156,7 +157,6 @@ def weighted_shuffle(parse_list, ci, idf_list=None):
     tf_thresh = 5
     score = [freq_dict[ci][x[0]] for x in parse_list]        
     if idf_list:
-        print '=====idf'
         flt = map(lambda x: x if x>=tf_thresh else 0, score)
         tf = np.array(flt)
         idf = np.array([idf_list[x[0]] for x in parse_list])
@@ -169,11 +169,10 @@ def weighted_shuffle(parse_list, ci, idf_list=None):
     choices = [parse_list[x] for x in choice_ids]
     return choices
 
-def sort_list(parse_list, ci, idf_list=None):
+def sort_list(parse_list, ci, idf_list=None, output_score=False):
     tf_thresh = 5
     score = [freq_dict[ci][x[0]] for x in parse_list]        
     if idf_list:
-        print '=====idf'
         flt = map(lambda x: x if x>=tf_thresh else 0, score)
         tf = np.array(flt)
         idf = np.array([idf_list[x[0]] for x in parse_list])
@@ -181,8 +180,12 @@ def sort_list(parse_list, ci, idf_list=None):
     else:
         sc = np.array(score)
     score_ids = np.argsort(sc).tolist()[::-1]
+    score_vals = sc[score_ids]
     sort_res = [parse_list[x] for x in score_ids]
-    return sort_res
+    if output_score:
+        return sort_res, score_vals
+    else:
+        return sort_res
 
 def read_parse(d, idf_list = None):
     dn = d['sname']
@@ -365,6 +368,71 @@ def make_batch_train(data, batch_size, fpath, idf_list):
             json.dump(batch_set, fj, indent=4)
         batch_id += 1
 
+def select_neg_man(parse):
+    word_freq_thresh = 100
+    parse_words = parse.strip().replace(')', '').replace('(', '').split()
+    watch_dog = 0
+    while True:
+        neg_word = clusters.get_negative(parse_words[-1])
+        if not neg_word:
+            return None
+        if '-' in neg_word:
+            neg_word = neg_word.split('-')[0]
+        if train_word_count[neg_word] > word_freq_thresh:
+            #print '----Accept'
+            break
+        watch_dog += 1
+        if watch_dog > 10:
+            return None
+
+    parse_words[-1] = neg_word
+    return '(is (and ' + ' '.join(parse_words[2:]) + '))'
+    
+def make_batch_train_man(data, batch_size, fpath, idf_list):
+    batch_id = 0
+    for batch_head in range(0, len(data), batch_size):
+        print('AT BATCH >> '+ str(batch_id))
+        batch_end = batch_head + batch_size
+        batch_data = data[batch_head:batch_end]
+        batch_output = list()
+        selected_parses = select_parses(batch_data, idf_list)
+        ### select top tf-idf scored parses for each image
+        batch_pos = [parse_score_list[0] for parse_score_list in selected_parses]
+        ### select neg for each parse by replacing last word, otherwise random pick
+        batch_negs = [[] for i in range(len(batch_pos))]
+        for loc, parse_sent_pairs in enumerate(batch_pos):
+            for parse, sent in parse_sent_pairs:
+                neg_parse = select_neg_man(parse)
+                if not neg_parse:
+                    while (True):
+                        candid = np.random.random_integers(len(batch_pos)) - 1
+                        if batch_data[candid]['cid'] != batch_data[loc]['cid']:
+                            neg_parse = random.choice(batch_pos[candid][:10])
+                            break
+                else:
+                    neg_parse = (neg_parse, sent)
+                batch_negs[loc].append(neg_parse)
+        ### construct and save batch_output
+        for idx, d in enumerate(batch_data):
+            for ps in range(POS_SAMPLE):
+                if ps >= len(batch_pos[idx]):
+                    break
+                batch_output.append({'image':d['name'].split('/')[-1]+'.jpg.npz',
+                                  'parse':batch_pos[idx][ps][0],
+                                  'question':batch_pos[idx][ps][1], 'answer': 'yes',
+                                  'cname':d['cname'], 'cid':d['cid'],
+                                  'sent_cid':d['cid'], 'sent_cname':d['cname']})
+                ns = ps
+                batch_output.append({'image':d['name'].split('/')[-1]+'.jpg.npz',
+                                  'parse':batch_negs[idx][ns][0],
+                                  'question':batch_negs[idx][ns][1], 'answer': 'no',
+                                  'cname':d['cname'], 'cid':d['cid'],
+                                  'sent_cid':0, 'sent_cname':'unknown'})
+        
+        with open(fpath+'/batch_'+str(batch_id)+'.json', 'w+') as fj:
+            json.dump(batch_output, fj, indent=4)
+        batch_id += 1
+    
 def make_batch_val(data, batch_size, fpath):
     batch_id = 0
     for batch_head in range(0, len(data), batch_size):
@@ -392,15 +460,18 @@ def make_batch_test(data, batch_size, fpath, idf_dict, sample_size=0):
     batch_id = 0
     class_parses = defaultdict(dict)
     class_parses_sorted = defaultdict(list)
+    class_parses_scores = defaultdict(list)
     for d in data:
         parses = read_parse(d)
         for ps in parses:
             class_parses[d['cid']][ps[0]] = ps[1]
+        
     for c in class_parses.keys():
-        parses_sorted = sort_list(class_parses[c].items(), c, idf_dict)
-        for ps in parses_sorted:
+        parses_sorted, scores = sort_list(class_parses[c].items(), c, idf_dict, True)
+        for ps, score in zip(parses_sorted, scores):
             if ps[0] not in except_list:
                 class_parses_sorted[c].append(ps)
+                class_parses_scores[c].append(score)
             if len(class_parses_sorted[c]) >= TEST_SAMPLE:
                 break
         for batch_head in range(0, sample_size, batch_size):
@@ -420,14 +491,31 @@ def make_batch_test(data, batch_size, fpath, idf_dict, sample_size=0):
                 json.dump(batch_set, fj, indent=4)
             batch_id += 1
 
+    with open(log_path+'/test_class_parses_'+str(sample_size)+'.json', 'w+') as fj:
+        json.dump(dict(zip(class_parses_sorted.keys(), \
+                           zip(class_parses_sorted.values(), class_parses_scores.values()))), fj, indent=4)
     return class_parses_sorted
 
+def select_parses(data_list, idf_dict):
+    selected_parses = list()
+    for data in data_list:
+        unique_parses = list()
+        unique_sents = list()
+        for ps, sent in read_parse(data):
+            if ps not in unique_parses:
+                unique_parses.append(ps)
+                unique_sents.append(sent)
+        sorted_parse_pair_list, parse_scores = sort_list(zip(unique_parses, unique_sents), data['cid'], idf_dict, True)
+        selected_parses.append((sorted_parse_pair_list, parse_scores))
+    return selected_parses
+    
 if __name__ == '__main__':
     batch_size = 10
     num_itr = 100
     ### Read train and test set data
-    train_set, test_set = create_db_cub()    
-    '''
+    train_set, test_set = create_db_cub()
+    #selected_parses_test = select_parses(test_set, test_idf_dict)
+    
     ### All adjectives
     #adj_set = set()
     #parse_set = set()
@@ -451,7 +539,7 @@ if __name__ == '__main__':
                             freq_list.append(1)
                         else:
                             freq_list[adj_list.index(term)] += 1
-    
+    '''
     with open('set_train_parses.sps','w+') as pf, open('set_train_adj.txt', 'w+') as af, open('set_train_sent.txt', 'w+') as sf:    
         for p in parse_list:
             print >>pf, p
@@ -460,12 +548,15 @@ if __name__ == '__main__':
         for s in sent_list:
             print >>sf, s
     '''  
+    global train_word_count
+    train_word_count = dict(zip(adj_list, freq_list))
+
     ### Make Validation batches
     fpath_val = batch_path + '/val'
     data_val = list(test_set)
     np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_val)
-    make_batch_train(data_val, batch_size, fpath_val, test_idf_dict)   
+    make_batch_train_man(data_val, batch_size, fpath_val, test_idf_dict)   
     
     ### Make Zero shot compare all batches for test data
     fpath_test = batch_path + '/test'
@@ -492,7 +583,8 @@ if __name__ == '__main__':
         np.random.shuffle(data_train)
         fpath_train = batch_path + '/itr_' + str(itr)
         os.system('mkdir ' + fpath_train)
-        make_batch_train(data_train, batch_size, fpath_train, train_idf_dict)
+        make_batch_train_man(data_train, batch_size, fpath_train, train_idf_dict)
+
     #normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug', train_set)
 
 

@@ -6,14 +6,14 @@ task:
   input_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug
   image_path: /media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images_aug
   load_normalizer: /media/evl/Public/Mahyar/Data/CVPRdata/normalizer_data_aug.npz
-  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches8
-  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches8/val
-  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches8/test
-  load_test_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches8/test_train
-  parse_path: /media/evl/Public/Mahyar/Data/CVPRdata/sps2_clean
-  prepare_indices: true
-  #load_indices: data/
-  save_indices: true
+  load_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches9
+  load_val: /media/evl/Public/Mahyar/Data/CVPRdata/batches9/val
+  load_test: /media/evl/Public/Mahyar/Data/CVPRdata/batches9/test
+  load_test_train: /media/evl/Public/Mahyar/Data/CVPRdata/batches9/test_train
+  parse_path: /media/evl/Public/Mahyar/Data/CVPRdata/sps2
+  prepare_indices: false
+  load_indices: data/
+  save_indices: false
   save_net: 5
 
 model:

@@ -9,7 +9,7 @@ import numpy as np
 import json
 from collections import defaultdict
 
-jdata_path = '/media/evl/Public/Mahyar/Data/CVPRdata/results25/logs/test_predictions_10.json'
+jdata_path = '/media/evl/Public/Mahyar/Data/CVPRdata/results25/logs/test_predictions_5.json'
 im_db = defaultdict(lambda: defaultdict(list))
 ann_db = dict()
 pred_db = dict()

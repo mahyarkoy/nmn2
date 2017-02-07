@@ -76,3 +76,31 @@ class PyL1LossWeighted(PyLayer):
             focus[index] = ((index[0] - colc)**2 + (index[1] - rowc)**2 ) / self.sigma**2
         focus = 1-np.exp(-focus)
         return focus
+
+class PyContrastiveLoss(PyLayer):
+    def __init__(self, name, loss_weight=1, normalize=1, **kwargs):
+        PyLayer.__init__(self, name, dict(), **kwargs)
+        self.loss_weight = loss_weight
+
+    def reshape(self, bottom, top):
+        top[0].reshape((1,))
+
+    def forward(self, bottom, top):
+        delta = 1
+        top[0].reshape((1,))
+        batch_size = bottom[0].shape[0]
+        im_scores = np.copy(bottom[0].data)
+        im_true_scores = im_scores[range(batch_size), bottom[1].data.astype(int)]
+        im_true_scores = im_true_scores.reshape((batch_size,1))
+        ### Loss = 1/N sum_ij max(0, delta(i,j) + F(i,j) - F(i,j))
+        im_scores = im_scores - im_true_scores
+        im_scores += 1
+        im_scores[range(batch_size), bottom[1].data.astype(int)] -= 1
+        self.masked_scores = (im_scores > 0) * np.ones(im_scores.shape) * self.loss_weight / float(batch_size)
+        top[0].data[...] = np.sum(self.masked_scores * im_scores)
+        return top[0].data.item()
+
+    def backward(self, top, bottom):
+        batch_size = bottom[0].shape[0]
+        bottom[0].diff[...] += self.masked_scores
+        bottom[0].diff[range(batch_size), bottom[1].data.astype(int)] -= np.sum(self.masked_scores, axis=1)

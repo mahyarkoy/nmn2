@@ -279,7 +279,7 @@ def do_iter(task_set, model, config, train=False, vis=False):
 def do_iter_external(pathname, task, model, config, train=False, vis=None):
     loss = 0.0
     acc = 0.0
-    predictions = []
+    predictions = list()
     n_batches = 0
     data_size = 0
     ### Read batches from file
@@ -299,16 +299,16 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
 
             loss += batch_loss
             acc += batch_acc
-            predictions += batch_preds
+            predictions.append(batch_preds)
             n_batches += 1
 
             if vis == 'single':
                 i_datum = np.random.choice(len(batch_data))
-                datum = batch_data[i_datum]
-                visualize(i_datum, datum, model)
+                #datum = batch_data[i_datum]
+                visualize(i_datum, batch_data, model)
             elif vis == 'all':
                 for i_datum, datum in enumerate(batch_data):
-                    visualize(i_datum, datum, model)
+                    visualize(i_datum, batch_data, model)
 
             if hasattr(config.task, 'debug'):
                 if n_batches >= config.task.debug:
@@ -326,7 +326,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
 def do_batch(data, model, config, train, vis):
     predictions = forward(data, model, config, train, vis)
     answer_loss = backward(data, model, config, train, vis)
-    acc = compute_acc(predictions, data, config)
+    acc = compute_acc(model, data, config)
 
     return answer_loss, acc, predictions
 
@@ -381,37 +381,44 @@ def forward(data, model, config, train, vis):
             pred_words.append(set(ANSWER_INDEX.get(w) for w in chosen))
     else:
         pred_ids = np.argmax(model.prediction_data, axis=1)
-        pred_words = [ANSWER_INDEX.get(w) for w in pred_ids]
+        pred_words = [data[w].im_cid for w in pred_ids]
 
     ### Store the top 10 scores
     top10_words = list()
     top10_probs = list()
     yes_prs = list()
-    yes_id = ANSWER_INDEX.index('yes')
+    #yes_id = ANSWER_INDEX.index('yes')
     for i in range(model.prediction_data.shape[0]):
         preds = model.prediction_data[i,:]
         chosen = list(reversed(np.argsort(preds)))
-        top10_words.append(list(ANSWER_INDEX.get(w) for w in chosen))
+        top10_words.append(list(data[w].im_cid for w in chosen[:5]))
         top10_probs.append(map(lambda x: '%.3f' %x, list(preds[w].item() for w in chosen)))
-        yes_prs.append(preds[yes_id].item())
+        yes_prs.append(preds[i].item())
 
     ### Store predictions
-    predictions = list()
+    pred_scores = list()
+    pred_classes = list()
+    pred_parses = list()
     for i in range(len(data)):
         #qid = data[i].id
         answer = pred_words[i]
         top10 = dict(zip(top10_words[i],top10_probs[i]))
+        '''
         predictions.append({'prob': yes_prs[i], 'im_name': data[i].im_name,
                             'im_cid': data[i].im_cid, 'im_cname':data[i].im_cname,
                             'sent_cid':data[i].sent_cid, 'sent_cname':data[i].sent_cname,
                             'answer': answer, 'parses': data[i].parses, 'top10': top10})
+        '''
+        pred_scores.append(model.prediction_data[i,:].tolist())
+        pred_classes.append(data[i].im_cid)
+        pred_parses.append(data[i].parses)
 
-    return predictions
+    return {'pred_scores': pred_scores, 'class_ids': pred_classes, 'parses': pred_parses}
 
 def backward(data, model, config, train, vis):
     n_answers = len(data[0].answers)
     loss = 0
-
+    ### answer input to loss (output_i) is irrelevant with contrastive loss, to be removed
     for i in range(n_answers):
         if config.opt.multiclass:
             output_i = np.zeros((len(data), len(ANSWER_INDEX)))
@@ -429,13 +436,15 @@ def backward(data, model, config, train, vis):
 
     return loss
 
-def visualize(i_datum, datum, model):
+def visualize(i_datum, data, model):
+    datum = data[i_datum]
     att_blobs = list()
     att_ids = list()
     mod_layout_choice = model.module_layout_choices[i_datum]
+    mod_layout_loc = model.module_layout_locations[i_datum]
     #print model.apollo_net.blobs.keys()
     for i in range(0,10):
-        att_blob_name = "Find_%d_sigmoid" % (mod_layout_choice * 100 + i)
+        att_blob_name = "Find_%d_relu" % (mod_layout_choice * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AT'+str(i))
@@ -447,10 +456,10 @@ def visualize(i_datum, datum, model):
     ext_blob_ids = 'NONE'
     ext_val = -11
     for i in range(0,10):
-        ext_blob_name = "Exists_%d_reduce" % (mod_layout_choice * 100 + i)
+        ext_blob_name = "Exists_%d_ip" % (mod_layout_choice * 100 + i)
         if ext_blob_name in model.apollo_net.blobs.keys():
             ext_blob_ids='AT'+str(i)
-            ext_val = model.apollo_net.blobs[ext_blob_name].data[i_datum,...].item()
+            ext_val = model.apollo_net.blobs[ext_blob_name].data[mod_layout_loc * i_datum,...].item()
             break
     if len(att_blobs) == 0:
         return
@@ -458,7 +467,7 @@ def visualize(i_datum, datum, model):
     #question = " ".join([QUESTION_INDEX.get(w) for w in datum.question[1:-1]]),
     preds = model.prediction_data[i_datum,:]
     top = np.argsort(preds)
-    top_answers = list(reversed([ANSWER_INDEX.get(p) for p in top]))
+    top_answers = list(reversed([data[p].im_cid for p in top]))
     parse = datum.parses
     im_path = datum.input_image
     im_cid = datum.im_cid
@@ -468,7 +477,7 @@ def visualize(i_datum, datum, model):
     fields = list()
     fields.append("<img src='%s' width='140' height='140'/>" % im_path)
     for i_atb, atb in enumerate(att_blobs):
-        att_data = model.apollo_net.blobs[atb].data[i_datum,...]
+        att_data = model.apollo_net.blobs[atb].data[mod_layout_loc * i_datum,...]
         att_data = att_data.reshape((14, 14))
         att_data_list.append(att_data)
         fields.append(att_data)
@@ -480,12 +489,13 @@ def visualize(i_datum, datum, model):
     fields.append(str(datum.layouts[0]))
     #fields.append(sent_cid)
     #fields.append(", ".join(top_answers))
-    fields.append('TOP:'+top_answers[0])
-    fields.append(", ".join([ANSWER_INDEX.get(a) for a in datum.answers]))
+    fields.append('TOP:'+str(top_answers[:5]))
+    fields.append('GT:'+datum.im_cid)
     fields.append('EXT_'+ext_blob_ids+'_%.3f'% ext_val)
     visualizer.show(fields)
 
-def compute_acc(predictions, data, config):
+def compute_acc(model, data, config):
+    '''
     score = 0.0
     for prediction, datum in zip(predictions, data):
         pred_answer = prediction["answer"]
@@ -501,6 +511,12 @@ def compute_acc(predictions, data, config):
             score += min(len(matching_answers) / 3.0, 1.0)
     score /= len(data)
     return score
+    '''
+    preds = np.argmax(model.prediction_data, axis=1)
+    mistake = preds - np.arange(len(data))
+    correct_count = np.sum(mistake == 0)
+    acc = correct_count / float(len(data))
+    return acc
 
 if __name__ == "__main__":
     main()

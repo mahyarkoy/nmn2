@@ -1,4 +1,4 @@
-from layers.reinforce import Index, AsLoss, PyL1Loss, PyL1LossWeighted
+from layers.reinforce import Index, AsLoss, PyL1Loss, PyL1LossWeighted, PyContrastiveLoss
 from misc.indices import QUESTION_INDEX, MODULE_INDEX, ANSWER_INDEX, UNK_ID
 from misc import util
 from opt import adadelta
@@ -179,8 +179,10 @@ class MultiplicativeFindModule(Module):
         image_size = width * height
         filter_height = 1
         filter_width = 1
+        label_size = len(label_data)
 
         proj_image = "Find_%d_proj_image" % index
+        tiled_image = "Find_%d_tiled_image" % index
         label = "Find_%d_label" % index
         label_vec = "Find_%d_label_vec" % index
         label_vec_bias = "Find_%d_label_vec_bias" % index
@@ -190,6 +192,7 @@ class MultiplicativeFindModule(Module):
         mask = "Find_%d_mask" % index
         sigmoid = "Find_%d_sigmoid" % index
         softmax = "Find_%d_softmax" % index
+        relu = "Find_%d_relu" % index
         copy = "Find_%d_copy" % index
         word_l1norm = "Find_%d_word_L1_Norm" % index
         att_l1norm = "Find_%d_att_L1_Norm" % index
@@ -225,6 +228,10 @@ class MultiplicativeFindModule(Module):
                 proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
+        tile_count = label_size / batch_size
+        net.f(Tile(tiled_image, axis=0, tiles=tile_count, bottoms=[proj_image]))
+        assert net.blobs[tiled_image].shape[0] == label_size
+
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
         ## Wordvec construction
         net.f(NumpyData(label, label_data))
@@ -249,8 +256,8 @@ class MultiplicativeFindModule(Module):
                             bottoms=[label_class_2],
                             param_names=[label_class_param_weights, label_class_param_bias]))
         '''
-        net.blobs[label_class].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
-        net.blobs[label_vec_bias].reshape((batch_size, 1, 1, 1))
+        net.blobs[label_class].reshape((label_size, self.config.att_hidden, filter_height, filter_width))
+        net.blobs[label_vec_bias].reshape((label_size, 1, 1, 1))
 
         ### Legacy version, with no image projection
         '''
@@ -294,7 +301,7 @@ class MultiplicativeFindModule(Module):
         ### to classify at each location of image with filter field of view
         ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[proj_image, label_vec_final, label_vec_bias],
+                bottoms=[tiled_image, label_vec_final, label_vec_bias],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),
@@ -314,15 +321,17 @@ class MultiplicativeFindModule(Module):
             net.f(Sigmoid(sigmoid, bottoms=[mask]))
             ### attention L1 regularization
             # net.f(PyL1Loss(att_l1norm, loss_weight=10, bottoms=[sigmoid]))
-
             prev = sigmoid
         elif self.config.att_normalization == "global":
             net.f(Softmax(softmax, bottoms=[mask]))
             prev = softmax
+        elif self.config.att_normalization == "relu":
+            net.f(ReLU(relu, bottoms=[mask]))
+            prev = relu
         # TODO still WTF
         net.f(Power(copy, bottoms=[prev]))
 
-        net.blobs[copy].reshape((batch_size, 1, image_size, 1))
+        net.blobs[copy].reshape((label_size, 1, image_size, 1))
 
         return copy
 
@@ -402,7 +411,7 @@ class AndModule(Module):
 
         prod = "And_%d_prod" % index
 
-        net.f(Eltwise(prod, "PROD", bottoms=bottoms))
+        net.f(Eltwise(prod, "SUM", bottoms=bottoms))
 
         return prod
 
@@ -449,6 +458,7 @@ class ExistsModule(Module):
         net = apollo_net
         batch_size, channels, image_height, image_width = net.blobs[features].shape
         image_size = image_width*image_height
+        label_size = len(label_data)
 
         reduce = "Exists_%d_reduce" % index
         ip = "Exists_%d_ip" % index
@@ -459,7 +469,7 @@ class ExistsModule(Module):
         ip_param_bias = "Exists_ip_param_bias"
 
         net.f(Pooling(reduce, kernel_h=image_size, kernel_w=1, bottoms=[mask]))
-
+'''
         net.f(InnerProduct(
             ip, len(ANSWER_INDEX), bottoms=[reduce],
             param_names=[ip_param_weight, ip_param_bias],
@@ -469,7 +479,8 @@ class ExistsModule(Module):
         net.params[ip_param_weight].data[ANSWER_INDEX["yes"],0] = 1
         net.params[ip_param_weight].data[ANSWER_INDEX["no"],0] = -1
         net.params[ip_param_bias].data[ANSWER_INDEX["no"]] = 1
-
+'''
+        net.f(TanH(ip, bottoms=[reduce]))
         return ip
 
 class Nmn:
@@ -550,10 +561,10 @@ class NmnModel:
 
         chosen_layouts = [ll[i] for ll, i in zip(layouts, layout_ids)]
         '''
-
         # keep single layouts only, no lstm in use
         question_hidden = 'dummy'
         chosen_layouts = [ll[0] for ll in layouts]
+        batch_size = len(chosen_layouts)
         
         ### prepare layout data
         module_layouts = list(set(l.modules for l in chosen_layouts))
@@ -566,6 +577,11 @@ class NmnModel:
                 default_labels[choice] = layout.labels
         
         layout_label_data = []
+        ### For each layout, stores a long list of corresponding tiled labels
+        layout_label_tiles = [[] for d in module_layouts]
+        layout_label_counts = [0 for d in module_layouts]
+        ### For each data, stores at which iteration it was saved into layout_labels_tiles (order of storing)
+        data_label_idx = [0 for d in chosen_layouts]
         layout_mask = []
         for layout, choice in zip(chosen_layouts, module_layout_choices):
             labels_here = list(default_labels)
@@ -574,9 +590,24 @@ class NmnModel:
             mask_here = [0 for i in range(len(module_layouts))]
             mask_here[choice] = 1
             layout_mask.append(mask_here)
-        layout_mask = np.asarray(layout_mask)
+            ### tile each label to batch_size
+            label_tile = [layout.labels]*batch_size
+            ### add tiled label to the list of its corresponding layout
+            layout_label_tiles[choice] += label_tile
+            layout_label_counts[choice] += 1
 
+        ### Store the location of each data label on the unfolded layout_label_tiles
+        counter_helper = [0 for d in module_layouts]
+        module_layout_locations = list()
+        for idx, c in enumerate(chosen_layouts):
+            data_label_idx[idx] = sum(layout_label_counts[:c]) + counter_helper[choice]
+            module_layout_locations.append(counter_helper[choice])
+            counter_helper[choice] += 1
+        self.data_label_idx = data_label_idx
+
+        layout_mask = np.asarray(layout_mask)
         self.module_layout_choices = module_layout_choices
+        self.module_layout_locations = module_layout_locations
 
         ### predict answer
         features = self.forward_features(features_data.shape[0], features_data, dropout)
@@ -589,20 +620,38 @@ class NmnModel:
         nmn_outputs = []
         for i in range(len(module_layouts)):
             module_layout = module_layouts[i]
-            label_data = [lld[i] for lld in layout_label_data]
+            #label_data = [lld[i] for lld in layout_label_data]
+            label_data = layout_label_tiles[i]
             nmn = self.get_nmn(module_layout)
+            ### must tile features to equal label_data size (tile this much: label_data_size/batch_size)
             nmn_hidden = nmn.forward(label_data, features, rel_features, dropout)
             nmn_hiddens.append(nmn_hidden)
             nmn_outputs.append(nmn.outputs)
 
-        chosen_hidden = self.forward_choice(module_layouts, layout_mask, nmn_hiddens)
-        self.prediction = self.forward_pred(question_hidden, chosen_hidden)
+        #chosen_hidden = self.forward_choice(module_layouts, layout_mask, nmn_hiddens)
+        ### each row contains scores of one image against all parses, shape: (batch_size, batch_size) 
+        reshaped_hidden = self.forward_reshape(nmn_hiddens, batch_size, layout_label_counts)
+        #self.prediction = self.forward_pred(question_hidden, chosen_hidden)
+        self.prediction = reshaped_hidden
 
-        batch_size = self.apollo_net.blobs[nmn_hiddens[0]].shape[0]
+        #batch_size = self.apollo_net.blobs[nmn_hiddens[0]].shape[0]
         #self.apollo_net.f(Softmax('tmp_pred_probs', bottoms=[self.prediction]))
-        self.prediction_data = self.apollo_net.blobs[self.prediction].data
+        self.prediction_data = self.apollo_net.blobs[self.prediction].data[:,self.data_label_idx]
         #self.prediction_data = self.apollo_net.blobs['tmp_pred_probs'].data
         self.att_data = np.zeros((batch_size, 14, 14))
+    
+    def forward_reshape(self, nmn_hiddens, batch_size, label_counts):
+        net = self.apollo_net
+        concat = "RESHAPE_concat"
+        trans = "RESHAPE_transpose"
+        for h, count in zip(nmn_hiddens, label_counts):
+            assert count > 0
+            net.blobs[h].reshape((1, count, batch_size, 1))
+        ### (1, total_number_of_labels, batch_size, 1)
+        net.f(Concat(concat, axis=1, bottoms=nmn_hiddens))
+        net.f(Transpose(trans, bottoms=[concat]))
+        assert net.blobs[trans].shape == (batch_size, batch_size)
+        return trans
 
     def forward_choice(self, module_layouts, layout_mask, nmn_hiddens):
         net = self.apollo_net
@@ -800,6 +849,7 @@ class NmnModel:
 
     def loss(self, answer_data, multiclass=False):
         net = self.apollo_net
+        target_classes = self.data_label_idx
 
         target = "PRED_target_%d" % self.loss_counter
         loss = "PRED_loss_%d" % self.loss_counter
@@ -810,20 +860,23 @@ class NmnModel:
             net.f(NumpyData(target, answer_data))
             acc_loss = net.f(EuclideanLoss(
                 loss, bottoms=[self.prediction, target]))
-
+'''
             pred_probs = net.blobs[self.prediction].data
             batch_size = pred_probs.shape[0]
             pred_ans_probs = np.sum(np.abs(answer_data - pred_probs) ** 2, axis=1)
             # TODO
             pred_ans_log_probs = pred_ans_probs
-
+'''
         else:
-            net.f(NumpyData(target, answer_data))
-            acc_loss = net.f(SoftmaxWithLoss(
-                loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=1))
+            net.f(NumpyData(target, target_classes))
+            acc_loss = net.f(PyContrastiveLoss(
+                loss, loss_weight=1, bottoms=[self.prediction, target]))
+            #net.f(NumpyData(target, answer_data))
+            #acc_loss = net.f(SoftmaxWithLoss(
+            #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=1))
             #acc_loss = net.f(MultinomialLogisticLoss(
             #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
-
+'''
             net.f(Softmax(datum_loss, bottoms=[self.prediction]))
 
             pred_probs = net.blobs[datum_loss].data
@@ -833,7 +886,7 @@ class NmnModel:
             pred_ans_log_probs[answer_data == UNK_ID] = 0
 
         self.cumulative_datum_losses += pred_ans_log_probs
-
+'''
         return acc_loss
 
     def reinforce_layout(self, losses):

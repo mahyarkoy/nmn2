@@ -381,7 +381,7 @@ def forward(data, model, config, train, vis):
             pred_words.append(set(ANSWER_INDEX.get(w) for w in chosen))
     else:
         pred_ids = np.argmax(model.prediction_data, axis=1)
-        pred_words = [data[w].im_cid for w in pred_ids]
+        pred_words = [data[w].sent_cid for w in pred_ids]
 
     ### Store the top 10 scores
     top10_words = list()
@@ -391,7 +391,7 @@ def forward(data, model, config, train, vis):
     for i in range(model.prediction_data.shape[0]):
         preds = model.prediction_data[i,:]
         chosen = list(reversed(np.argsort(preds)))
-        top10_words.append(list(data[w].im_cid for w in chosen[:5]))
+        top10_words.append(list(data[w].sent_cid for w in chosen[:5]))
         top10_probs.append(map(lambda x: '%.3f' %x, list(preds[w].item() for w in chosen)))
         yes_prs.append(preds[i].item())
 
@@ -410,7 +410,7 @@ def forward(data, model, config, train, vis):
                             'answer': answer, 'parses': data[i].parses, 'top10': top10})
         '''
         pred_scores.append(model.prediction_data[i,:].tolist())
-        pred_classes.append(data[i].im_cid)
+        pred_classes.append(data[i].sent_cid)
         pred_parses.append(data[i].parses)
 
     return {'pred_scores': pred_scores, 'class_ids': pred_classes, 'parses': pred_parses}
@@ -467,7 +467,7 @@ def visualize(i_datum, data, model):
     #question = " ".join([QUESTION_INDEX.get(w) for w in datum.question[1:-1]]),
     preds = model.prediction_data[i_datum,:]
     top = np.argsort(preds)
-    top_answers = list(reversed([data[p].im_cid for p in top]))
+    top_answers = list(reversed([data[p].sent_cid for p in top]))
     parse = datum.parses
     im_path = datum.input_image
     im_cid = datum.im_cid

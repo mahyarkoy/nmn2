@@ -228,9 +228,12 @@ class MultiplicativeFindModule(Module):
                 proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
-        tile_count = label_size / batch_size
-        net.f(Tile(tiled_image, axis=0, tiles=tile_count, bottoms=[proj_image]))
-        assert net.blobs[tiled_image].shape[0] == label_size
+        #tile_count = label_size / batch_size
+        #if tile_count != 10:
+        #    print 'WTF', net.blobs[proj_image].shape, net.blobs[tiled_image].shape, tile_count
+        #net.f(Tile(tiled_image, axis=0, tiles=tile_count, bottoms=[proj_image]))
+        #print net.blobs[proj_image].shape, net.blobs[tiled_image].shape, tile_count
+        #assert net.blobs[tiled_image].shape[0] == label_size
 
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
         ## Wordvec construction
@@ -300,8 +303,9 @@ class MultiplicativeFindModule(Module):
         ### Parametrec convolution of proj_image and label_vec_final
         ### to classify at each location of image with filter field of view
         ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
+        ### Paramconv broadcasts (repeats) for missing batches in either inputs, output batch size in max input batch size
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[tiled_image, label_vec_final, label_vec_bias],
+                bottoms=[proj_image, label_vec_final, label_vec_bias],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),
@@ -469,7 +473,7 @@ class ExistsModule(Module):
         ip_param_bias = "Exists_ip_param_bias"
 
         net.f(Pooling(reduce, kernel_h=image_size, kernel_w=1, bottoms=[mask]))
-'''
+        '''
         net.f(InnerProduct(
             ip, len(ANSWER_INDEX), bottoms=[reduce],
             param_names=[ip_param_weight, ip_param_bias],
@@ -479,7 +483,7 @@ class ExistsModule(Module):
         net.params[ip_param_weight].data[ANSWER_INDEX["yes"],0] = 1
         net.params[ip_param_weight].data[ANSWER_INDEX["no"],0] = -1
         net.params[ip_param_bias].data[ANSWER_INDEX["no"]] = 1
-'''
+        '''
         net.f(TanH(ip, bottoms=[reduce]))
         return ip
 
@@ -599,10 +603,10 @@ class NmnModel:
         ### Store the location of each data label on the unfolded layout_label_tiles
         counter_helper = [0 for d in module_layouts]
         module_layout_locations = list()
-        for idx, c in enumerate(chosen_layouts):
-            data_label_idx[idx] = sum(layout_label_counts[:c]) + counter_helper[choice]
-            module_layout_locations.append(counter_helper[choice])
-            counter_helper[choice] += 1
+        for idx, c in enumerate(module_layout_choices):
+            data_label_idx[idx] = sum(layout_label_counts[:c]) + counter_helper[c]
+            module_layout_locations.append(counter_helper[c])
+            counter_helper[c] += 1
         self.data_label_idx = data_label_idx
 
         layout_mask = np.asarray(layout_mask)
@@ -648,7 +652,10 @@ class NmnModel:
             assert count > 0
             net.blobs[h].reshape((1, count, batch_size, 1))
         ### (1, total_number_of_labels, batch_size, 1)
-        net.f(Concat(concat, axis=1, bottoms=nmn_hiddens))
+        if len(nmn_hiddens) > 1:
+            net.f(Concat(concat, axis=1, bottoms=nmn_hiddens))
+        else:
+            concat = nmn_hiddens[0]
         net.f(Transpose(trans, bottoms=[concat]))
         assert net.blobs[trans].shape == (batch_size, batch_size)
         return trans
@@ -860,13 +867,13 @@ class NmnModel:
             net.f(NumpyData(target, answer_data))
             acc_loss = net.f(EuclideanLoss(
                 loss, bottoms=[self.prediction, target]))
-'''
+            '''
             pred_probs = net.blobs[self.prediction].data
             batch_size = pred_probs.shape[0]
             pred_ans_probs = np.sum(np.abs(answer_data - pred_probs) ** 2, axis=1)
             # TODO
             pred_ans_log_probs = pred_ans_probs
-'''
+            '''
         else:
             net.f(NumpyData(target, target_classes))
             acc_loss = net.f(PyContrastiveLoss(
@@ -876,7 +883,7 @@ class NmnModel:
             #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=1))
             #acc_loss = net.f(MultinomialLogisticLoss(
             #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
-'''
+            '''
             net.f(Softmax(datum_loss, bottoms=[self.prediction]))
 
             pred_probs = net.blobs[datum_loss].data
@@ -886,7 +893,7 @@ class NmnModel:
             pred_ans_log_probs[answer_data == UNK_ID] = 0
 
         self.cumulative_datum_losses += pred_ans_log_probs
-'''
+        '''
         return acc_loss
 
     def reinforce_layout(self, losses):

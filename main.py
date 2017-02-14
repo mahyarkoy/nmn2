@@ -198,7 +198,7 @@ def configure():
     apollocaffe.set_random_seed(0)
     np.random.seed(0)
     random.seed(0)
-    apollocaffe.set_device(1)
+    apollocaffe.set_device(0)
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
@@ -459,7 +459,7 @@ def visualize(i_datum, data, model):
         ext_blob_name = "Exists_%d_ip" % (mod_layout_choice * 100 + i)
         if ext_blob_name in model.apollo_net.blobs.keys():
             ext_blob_ids='AT'+str(i)
-            ext_val = model.apollo_net.blobs[ext_blob_name].data[mod_layout_loc * i_datum,...].item()
+            ext_val = model.apollo_net.blobs[ext_blob_name].data[mod_layout_loc * len(data) + i_datum,...].item()
             break
     if len(att_blobs) == 0:
         return
@@ -477,7 +477,7 @@ def visualize(i_datum, data, model):
     fields = list()
     fields.append("<img src='%s' width='140' height='140'/>" % im_path)
     for i_atb, atb in enumerate(att_blobs):
-        att_data = model.apollo_net.blobs[atb].data[mod_layout_loc * i_datum,...]
+        att_data = model.apollo_net.blobs[atb].data[mod_layout_loc * len(data) + i_datum,...]
         att_data = att_data.reshape((14, 14))
         att_data_list.append(att_data)
         fields.append(att_data)

@@ -23,7 +23,7 @@ def find_prediction(pred):
         #use top_choices to filter out noise, not useful currently
         val.sort()
         vec = np.asarray(val)
-        res.append(np.mean(vec))
+        res.append(np.prod(vec))
     cid = np.argsort(res)[::-1][0:top]
     #cid = np.random.choice(len(res),top)
     out = [pred_list[x][0] for x in cid.tolist()]    

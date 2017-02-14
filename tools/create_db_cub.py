@@ -648,14 +648,16 @@ if __name__ == '__main__':
     data_val = list(test_set)
     np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_val)
-    make_batch_train_contrastive(data_val, batch_size, fpath_val, test_idf_dict)   
+    #make_batch_train_contrastive(data_val, batch_size, fpath_val, test_idf_dict)
+    make_batch_train_man(data_val, batch_size, fpath_val, test_idf_dict)   
     
     ### Make Zero shot compare all batches for test data
     fpath_test = batch_path + '/test'
     data_test = list(test_set)
     #np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_test)
-    class_parses = make_batch_test_contrastive(data_test, batch_size*2, fpath_test, test_idf_dict)
+    #class_parses = make_batch_test_contrastive(data_test, batch_size*2, fpath_test, test_idf_dict)
+    class_parses = make_batch_test(data_test, batch_size*2, fpath_test, test_idf_dict)
     with open(output_path + '/test_class_parses.json', 'w+') as jf:
         json.dump(class_parses, jf, indent=4)
     
@@ -664,7 +666,8 @@ if __name__ == '__main__':
     data_test_train = list(train_set)
     np.random.shuffle(data_test_train)
     os.system('mkdir '+ fpath_test_train)
-    class_parses = make_batch_test_contrastive(data_test_train, batch_size*2, fpath_test_train, train_idf_dict, sample_size=1500)
+    #class_parses = make_batch_test_contrastive(data_test_train, batch_size*2, fpath_test_train, train_idf_dict, sample_size=1500)
+    class_parses = make_batch_test_train(data_test_train, batch_size*2, fpath_test_train, train_idf_dict, sample_size=1500)
     with open(output_path + '/train_class_parses.json', 'w+') as jf:
         json.dump(class_parses, jf, indent=4)
     
@@ -675,7 +678,8 @@ if __name__ == '__main__':
         np.random.shuffle(data_train)
         fpath_train = batch_path + '/itr_' + str(itr)
         os.system('mkdir ' + fpath_train)
-        make_batch_train_contrastive(data_train, batch_size, fpath_train, train_idf_dict)
+        #make_batch_train_contrastive(data_train, batch_size, fpath_train, train_idf_dict)
+        make_batch_train_man(data_train, batch_size, fpath_train, train_idf_dict)
 
     #normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug', train_set)
 

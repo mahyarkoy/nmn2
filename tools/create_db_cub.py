@@ -18,9 +18,9 @@ im_class_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_201
 im_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images.txt'
 split_path = '/media/evl/Public/Mahyar/Data/CVPRdata/splits/train_test_split.mat'
 parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2'
-batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches10'
-output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches10'
-log_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches10'
+batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches12'
+output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches12'
+log_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches12'
 
 freq_dict = defaultdict(lambda: defaultdict(int))
 train_idf_dict = dict()
@@ -369,6 +369,7 @@ def make_batch_train(data, batch_size, fpath, idf_list):
         batch_id += 1
 
 def select_neg_man(parse):
+    return None
     word_freq_thresh = 100
     parse_words = parse.strip().replace(')', '').replace('(', '').split()
     watch_dog = 0
@@ -447,7 +448,7 @@ def make_batch_train_contrastive(data, batch_size, fpath, idf_list):
     max_len = len(max(class_im_lists, key=len))
     candid_lists = list()
     for peel in range(max_len):
-        candid_lists.append([im_list[peel] for im_list in class_im_lists if peel < len(im_list)])
+        candid_lists.append([im_list[peel] if peel < len(im_list) else np.random.choice(im_list) for im_list in class_im_lists])
     ### shuffle each candidate list, then move over it and make batches
     for candid in candid_lists:
         np.random.shuffle(candid)
@@ -499,15 +500,15 @@ def make_batch_test_contrastive(data, batch_size, fpath, idf_dict, sample_size=0
     for batch_head in range(0, sample_size, batch_size):
         batch_end = batch_head + batch_size
         batch_data = data[batch_head:batch_end]
-        batch_set = list()
         c_batch_size = len(batch_data)
         for c_batch_head in range(0, len(c_batch), c_batch_size):
             print('AT BATCH >> '+ str(batch_id) + ' == ' + str(c_batch_size))
+            batch_set = list()
             c_batch_end = c_batch_head + c_batch_size
             c_batch_data = c_batch[c_batch_head:c_batch_end]
             if len(batch_data) > len(c_batch_data):
                 for itr in range(len(c_batch_data), len(batch_data)):
-                    c_batch_data.append((-1, '(is (and unknown))'))
+                    c_batch_data.append((-1, ['(is (and _this _unknown))', 'unknown']))
             assert len(batch_data) == len(c_batch_data) ### This is stupid! should handle pairing better
             for d, ps in zip(batch_data, c_batch_data):
                 ann = 'yes' if c==d['cid'] else 'no'
@@ -648,7 +649,7 @@ if __name__ == '__main__':
     data_val = list(test_set)
     np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_val)
-    #make_batch_train_contrastive(data_val, batch_size, fpath_val, test_idf_dict)
+    #make_batch_train_contrastive(data_val, batch_size*1, fpath_val, test_idf_dict)
     make_batch_train_man(data_val, batch_size, fpath_val, test_idf_dict)   
     
     ### Make Zero shot compare all batches for test data
@@ -656,7 +657,7 @@ if __name__ == '__main__':
     data_test = list(test_set)
     #np.random.shuffle(data_val)
     os.system('mkdir '+ fpath_test)
-    #class_parses = make_batch_test_contrastive(data_test, batch_size*2, fpath_test, test_idf_dict)
+    #class_parses = make_batch_test_contrastive(data_test, batch_size*10, fpath_test, test_idf_dict)
     class_parses = make_batch_test(data_test, batch_size*2, fpath_test, test_idf_dict)
     with open(output_path + '/test_class_parses.json', 'w+') as jf:
         json.dump(class_parses, jf, indent=4)
@@ -666,8 +667,8 @@ if __name__ == '__main__':
     data_test_train = list(train_set)
     np.random.shuffle(data_test_train)
     os.system('mkdir '+ fpath_test_train)
-    #class_parses = make_batch_test_contrastive(data_test_train, batch_size*2, fpath_test_train, train_idf_dict, sample_size=1500)
-    class_parses = make_batch_test_train(data_test_train, batch_size*2, fpath_test_train, train_idf_dict, sample_size=1500)
+    #class_parses = make_batch_test_contrastive(data_test_train, batch_size*10, fpath_test_train, train_idf_dict, sample_size=1500)
+    class_parses = make_batch_test(data_test_train, batch_size*2, fpath_test_train, train_idf_dict, sample_size=1500)
     with open(output_path + '/train_class_parses.json', 'w+') as jf:
         json.dump(class_parses, jf, indent=4)
     
@@ -678,7 +679,7 @@ if __name__ == '__main__':
         np.random.shuffle(data_train)
         fpath_train = batch_path + '/itr_' + str(itr)
         os.system('mkdir ' + fpath_train)
-        #make_batch_train_contrastive(data_train, batch_size, fpath_train, train_idf_dict)
+        #make_batch_train_contrastive(data_train, batch_size*1, fpath_train, train_idf_dict)
         make_batch_train_man(data_train, batch_size, fpath_train, train_idf_dict)
 
     #normalize_features('/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/convs_aug', train_set)

@@ -182,6 +182,7 @@ class MultiplicativeFindModule(Module):
         label_size = len(label_data)
 
         proj_image = "Find_%d_proj_image" % index
+        reduce_image = "Find_%d_reduce_image" % index
         tiled_image = "Find_%d_tiled_image" % index
         label = "Find_%d_label" % index
         label_vec = "Find_%d_label_vec" % index
@@ -227,6 +228,7 @@ class MultiplicativeFindModule(Module):
         net.f(Convolution(
                 proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
+        net.f(ReLU(reduce_image, bottoms=[proj_image]))
 
         #tile_count = label_size / batch_size
         #if tile_count != 10:
@@ -305,7 +307,7 @@ class MultiplicativeFindModule(Module):
         ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
         ### Paramconv broadcasts (repeats) for missing batches in either inputs, output batch size in max input batch size
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[proj_image, label_vec_final, label_vec_bias],
+                bottoms=[reduce_image, label_vec_final, label_vec_bias],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),
@@ -329,9 +331,11 @@ class MultiplicativeFindModule(Module):
         elif self.config.att_normalization == "global":
             net.f(Softmax(softmax, bottoms=[mask]))
             prev = softmax
-        elif self.config.att_normalization == "relu":
-            net.f(ReLU(relu, bottoms=[mask]))
-            prev = relu
+        else:
+            prev = mask
+        #elif self.config.att_normalization == "relu":
+        #    net.f(ReLU(relu, bottoms=[mask]))
+        #    prev = relu
         # TODO still WTF
         net.f(Power(copy, bottoms=[prev]))
 
@@ -464,15 +468,26 @@ class ExistsModule(Module):
         image_size = image_width*image_height
         label_size = len(label_data)
 
-        reduce = "Exists_%d_reduce" % index
+        reduced = "Exists_%d_reduce" % index
         ip = "Exists_%d_ip" % index
+        tanh = "Exists_%d_tanh" % index
+        norm = "Exists_%d_norm" % index
 
         reduce_param_weight = "Exists_reduce_param_weight"
         reduce_param_bias = "Exists_reduce_param_bias"
         ip_param_weight = "Exists_ip_param_weight"
         ip_param_bias = "Exists_ip_param_bias"
 
-        net.f(Pooling(reduce, kernel_h=image_size, kernel_w=1, bottoms=[mask]))
+        net.f(TanH(tanh, bottoms=[mask]))
+        #net.f(Pooling(reduced, kernel_h=image_size, kernel_w=1, bottoms=[ip]))
+        net.f(InnerProduct(
+            ip, 1, axis=1, bottoms=[tanh],
+            param_names=[ip_param_weight, ip_param_bias],
+            weight_filler=Filler("constant", 1),
+            bias_filler=Filler("constant", 0),
+            param_lr_mults=[0, 0]))
+        net.f(Power(norm, scale=1.0 / image_size, bottoms=[ip]))
+        #print net.blobs[norm].shape
         '''
         net.f(InnerProduct(
             ip, len(ANSWER_INDEX), bottoms=[reduce],
@@ -484,8 +499,8 @@ class ExistsModule(Module):
         net.params[ip_param_weight].data[ANSWER_INDEX["no"],0] = -1
         net.params[ip_param_bias].data[ANSWER_INDEX["no"]] = 1
         '''
-        net.f(TanH(ip, bottoms=[reduce]))
-        return ip
+        #net.f(TanH(ip, bottoms=[reduce]))
+        return norm
 
 class Nmn:
     def __init__(self, index, modules, apollo_net):
@@ -590,7 +605,8 @@ class NmnModel:
         for layout, choice in zip(chosen_layouts, module_layout_choices):
             labels_here = list(default_labels)
             labels_here[choice] = layout.labels
-            layout_label_data.append(labels_here)
+            #layout_label_data.append(labels_here)
+            layout_label_data.append(layout.labels)
             mask_here = [0 for i in range(len(module_layouts))]
             mask_here[choice] = 1
             layout_mask.append(mask_here)

@@ -1,8 +1,9 @@
 #!/bin/sh
+# Author info: Mahyar Khayatkhoei @ m.khayatkhoei@gmail.com
 set -o errexit
 READ_PATH=/media/evl/Public/Mahyar/Data/CVPRdata/text_c10/*/*.txt
 WRITE_PATH=/media/evl/Public/Mahyar/Data/CVPRdata/sps2_clean
-#export PATH=/home/mahyar/Downloads/stanford-parser:$PATH
+
 counter=0
 trap "exit" INT
 for f in $READ_PATH

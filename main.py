@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 
 # check profiler
-if not isinstance(__builtins__, dict) or "profile" not in __builtins__:
-    __builtins__.__dict__["profile"] = lambda x: x
+#if not isinstance(__builtins__, dict) or "profile" not in __builtins__:
+#    __builtins__.__dict__["profile"] = lambda x: x
 
 from misc import util
 from misc.indices import QUESTION_INDEX, ANSWER_INDEX, MODULE_INDEX, MODULE_TYPE_INDEX, \
@@ -95,7 +95,8 @@ def auto_main(config):
             print >>pred_f, json.dumps(val_predictions, indent=4)
 
         ### TEST RESULTS
-        if i_epoch % 5 == 0 and i_epoch != 0:
+        if i_epoch % 10 == 0 and i_epoch != 0:
+            print('=====TEST AT ITERATION %d=====' % i_epoch)
             test_loss, test_acc, test_predictions = \
                     do_iter_external(config.task.load_test, task, model, config)
             logging.info(
@@ -106,7 +107,8 @@ def auto_main(config):
                 print >>pred_f, json.dumps(test_predictions)
 
         ### TEST_TRAIN RESULTS
-        if i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
+        if i_epoch % 10 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
+            print('=====TEST-TRAIN AT ITERATION %d=====' % i_epoch)
             tt_loss, tt_acc, tt_predictions = \
                     do_iter_external(config.task.load_test_train, task, model, config)
             logging.info(
@@ -288,12 +290,12 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
 
     for (pname, dnames, fnames) in walk(pathname):
         for fn in fnames:
-            print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fn
             with open(pname+'/'+fn) as jf:
                 jd = json.load(jf)
                 batch_data = task.read_batch_json(jd)
 
             data_size += len(batch_data)
+            print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fn + ' >>> ' + str(len(batch_data))
             batch_loss, batch_acc, batch_preds = do_batch(
                     batch_data, model, config, train, vis)
 
@@ -318,7 +320,12 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
 
     if n_batches == 0:
         return 0, 0, dict()
-    assert len(predictions) == data_size
+    preds_size = 0
+    for pr in predictions:
+        preds_size += len(pr['pred_scores'])
+
+    print len(predictions), data_size
+    assert preds_size == data_size
     loss /= n_batches
     acc /= n_batches
     return loss, acc, predictions
@@ -442,24 +449,39 @@ def visualize(i_datum, data, model):
     att_ids = list()
     mod_layout_choice = model.module_layout_choices[i_datum]
     mod_layout_loc = model.module_layout_locations[i_datum]
+    ### FIXED: mod_index is not equal mod_layout_choice
+    mod_index = model.nmns[datum.layouts[0].modules].index
+    #print i_datum
+    #print mod_index
+    #print 'LOC', str(mod_layout_loc)
+    #print 'CHO', str(mod_layout_choice)
+    #print model.module_layout_locations
+    #print model.module_layout_choices
+
     #print model.apollo_net.blobs.keys()
     for i in range(0,10):
-        att_blob_name = "Find_%d_relu" % (mod_layout_choice * 100 + i)
+        att_blob_name = "Find_%d_relu" % (mod_index * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AT'+str(i))
+            #print model.apollo_net.blobs[att_blob_name].shape
     for i in range(0,10):
-        att_blob_name = "And_%d_prod" % (mod_layout_choice * 100 + i)
+        att_blob_name = "And_%d_prod" % (mod_index * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AND'+str(i))
+            #print model.apollo_net.blobs[att_blob_name].shape
     ext_blob_ids = 'NONE'
     ext_val = -11
     for i in range(0,10):
-        ext_blob_name = "Exists_%d_ip" % (mod_layout_choice * 100 + i)
+        ext_blob_name = "Exists_%d_norm" % (mod_index * 100 + i)
         if ext_blob_name in model.apollo_net.blobs.keys():
             ext_blob_ids='AT'+str(i)
-            ext_val = model.apollo_net.blobs[ext_blob_name].data[mod_layout_loc * len(data) + i_datum,...].item()
+            #print model.apollo_net.blobs[ext_blob_name].shape
+            ext_data = model.apollo_net.blobs[ext_blob_name].data
+            ext_reshaped = ext_data.reshape(np.prod(ext_data.shape))
+            #ext_val = model.apollo_net.blobs[ext_blob_name].data[mod_layout_loc * len(data) + i_datum,...].item()
+            ext_val = ext_reshaped[mod_layout_loc * len(data) + i_datum].item()
             break
     if len(att_blobs) == 0:
         return
@@ -490,8 +512,8 @@ def visualize(i_datum, data, model):
     #fields.append(sent_cid)
     #fields.append(", ".join(top_answers))
     fields.append('TOP:'+str(top_answers[:5]))
-    fields.append('GT:'+datum.im_cid)
-    fields.append('EXT_'+ext_blob_ids+'_%.3f'% ext_val)
+    fields.append('GT:'+str(datum.im_cid))
+    fields.append('EXT_'+str(ext_blob_ids)+'_%.3f'% ext_val)
     visualizer.show(fields)
 
 def compute_acc(model, data, config):

@@ -1,3 +1,5 @@
+# Author info: Mahyar Khayatkhoei @ m.khayatkhoei@gmail.com
+
 import sys
 import re
 from collections import defaultdict

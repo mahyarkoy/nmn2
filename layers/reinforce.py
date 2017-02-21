@@ -97,10 +97,13 @@ class PyContrastiveLoss(PyLayer):
         im_scores += 1
         im_scores[range(batch_size), bottom[1].data.astype(int)] -= 1
         self.masked_scores = (im_scores > 0) * np.ones(im_scores.shape) * self.loss_weight / float(batch_size)
-        top[0].data[...] = np.sum(self.masked_scores * im_scores)
+        self.arg_max_scores = np.argmax(im_scores, axis=1)
+        self.max_masked_scores = np.zeros(im_scores.shape)
+        self.max_masked_scores[range(batch_size), self.arg_max_scores] += self.masked_scores[range(batch_size), self.arg_max_scores]
+        top[0].data[...] = np.sum(self.max_masked_scores * im_scores)
         return top[0].data.item()
 
     def backward(self, top, bottom):
         batch_size = bottom[0].shape[0]
-        bottom[0].diff[...] += self.masked_scores
-        bottom[0].diff[range(batch_size), bottom[1].data.astype(int)] -= np.sum(self.masked_scores, axis=1)
+        bottom[0].diff[...] += self.max_masked_scores
+        bottom[0].diff[range(batch_size), bottom[1].data.astype(int)] -= np.sum(self.max_masked_scores, axis=1)

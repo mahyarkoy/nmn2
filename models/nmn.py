@@ -419,7 +419,7 @@ class AndModule(Module):
 
         prod = "And_%d_prod" % index
 
-        net.f(Eltwise(prod, "SUM", bottoms=bottoms))
+        net.f(Eltwise(prod, "PROD", bottoms=bottoms))
 
         return prod
 
@@ -478,8 +478,10 @@ class ExistsModule(Module):
         ip_param_weight = "Exists_ip_param_weight"
         ip_param_bias = "Exists_ip_param_bias"
 
-        net.f(TanH(tanh, bottoms=[mask]))
-        #net.f(Pooling(reduced, kernel_h=image_size, kernel_w=1, bottoms=[ip]))
+        #net.f(TanH(tanh, bottoms=[mask]))
+        net.f(Pooling(reduced, kernel_h=image_size, kernel_w=1, bottoms=[mask]))
+        norm = reduced
+        '''
         net.f(InnerProduct(
             ip, 1, axis=1, bottoms=[tanh],
             param_names=[ip_param_weight, ip_param_bias],
@@ -488,6 +490,7 @@ class ExistsModule(Module):
             param_lr_mults=[0, 0]))
         net.f(Power(norm, scale=1.0 / image_size, bottoms=[ip]))
         #print net.blobs[norm].shape
+        '''
         '''
         net.f(InnerProduct(
             ip, len(ANSWER_INDEX), bottoms=[reduce],

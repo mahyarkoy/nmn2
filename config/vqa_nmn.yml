@@ -23,7 +23,7 @@ model:
   att_hidden: 1024
   #pred_hidden: 500
   combine_question: false
-  att_normalization: relu
+  att_normalization: local
   #load_model: data/model_9.h5
   #load_adastate: data/model_9_adastate
 

@@ -460,7 +460,7 @@ def visualize(i_datum, data, model):
 
     #print model.apollo_net.blobs.keys()
     for i in range(0,10):
-        att_blob_name = "Find_%d_relu" % (mod_index * 100 + i)
+        att_blob_name = "Find_%d_copy" % (mod_index * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AT'+str(i))

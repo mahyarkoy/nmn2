@@ -2,7 +2,7 @@
 *.swp
 *.lprof
 *.log
-logs
+logs*
 vis
 data
 run.sh

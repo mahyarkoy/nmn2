@@ -295,11 +295,12 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
             print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fn
             with open(pname+'/'+fn) as jf:
                 jd = json.load(jf)
-                batch_data = task.read_batch_json(jd)
+                batch_data_orig = task.read_batch_json(jd)
 
+            batch_data, imc = reorder_batch(batch_data_orig)
             data_size += len(batch_data)
             batch_loss, batch_acc, batch_preds = do_batch(
-                    batch_data, model, config, train, vis)
+                    batch_data, model, config, train, vis, im_count=imc)
 
             loss += batch_loss
             acc += batch_acc
@@ -327,8 +328,18 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
     acc /= n_batches
     return loss, acc, predictions
 
-def do_batch(data, model, config, train, vis):
-    predictions = forward(data, model, config, train, vis)
+def reorder_batch(data):
+    im_db = defaultdict(list)
+    for idx, d in enumerate(data):
+        im_db[d.im_name].append(idx)
+    im_idx_mat = np.asarray(im_db.values())
+    new_data = [data[idx] for c in range(im_idx_mat.shape[1]) for idx in im_idx_mat[:,c]]
+    assert len(new_data) == len(data)
+    return new_data, im_idx_mat.shape[0]
+
+
+def do_batch(data, model, config, train, vis, im_count=None):
+    predictions = forward(data, model, config, train, vis, im_count)
     answer_loss = backward(data, model, config, train, vis)
     acc = compute_acc(predictions, data, config)
 
@@ -349,8 +360,9 @@ def featurize_layouts(datum, max_layouts):
             layout_reprs[i_layout, len(MODULE_INDEX) + mt] += 1
     return layout_reprs
 
-def forward(data, model, config, train, vis):
+def forward(data, model, config, train, vis, im_count=None):
     model.reset(len(data))
+    im_count = len(data) if im_count is None else im_count
 
     ### load batch data
     max_len = max(len(d.question) for d in data)
@@ -366,7 +378,8 @@ def forward(data, model, config, train, vis):
             (len(data), max_layouts, len(MODULE_INDEX) + 7))
     for i, datum in enumerate(data):
         questions[i, max_len-len(datum.question):] = datum.question
-        features[i, ...] = datum.load_features()
+        if i < im_count:
+            features[i, ...] = datum.load_features()
         ### uncomment for use in lstm
         #layout_reprs[i, ...] = featurize_layouts(datum, max_layouts)
     layouts = [d.layouts for d in data]

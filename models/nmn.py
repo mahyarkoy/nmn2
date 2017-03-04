@@ -181,6 +181,11 @@ class MultiplicativeFindModule(Module):
         filter_width = 1
 
         proj_image = "Find_%d_proj_image" % index
+        reduce_image = "Find_%d_reduce_image" % index
+        tiled_reduce_image = "Find_%d_tiled_reduce_image" % index
+        concat_image = "Find_%d_concat_image" % index
+        relu_image = "Find_%d_relu_image" % index
+        comb_image = "Find_%d_comb_image" % index
         label = "Find_%d_label" % index
         label_vec = "Find_%d_label_vec" % index
         label_vec_bias = "Find_%d_label_vec_bias" % index
@@ -204,6 +209,8 @@ class MultiplicativeFindModule(Module):
 
         proj_image_param_weight = "Find_proj_image_param_weight"
         proj_image_param_bias = "Find_proj_image_param_bias"
+        reduce_image_param_weight = "Find_reduce_image_param_weight"
+        reduce_image_param_bias = "Find_reduce_image_param_bias"
         label_vec_param = "Find_label_vec_param"
         label_vec_param_bias = "Find_label_vec_param_bias"
         mask_param_weight = "Find_mask_param_weight"
@@ -222,9 +229,19 @@ class MultiplicativeFindModule(Module):
         # compute attention mask
         ### Project images to att_hidden channels
         net.f(Convolution(
-                proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
+                proj_image, (1, 1), self.config.att_hidden/2, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
+        net.f(InnerProduct(reduce_image, self.config.att_hidden/2, bottoms=[features],
+                param_names=[reduce_image_param_weight, reduce_image_param_bias]))
+
+        net.blobs[reduce_image].reshape((batch_size, self.config.att_hidden/2,1,1))
+        net.f(Tile(tiled_reduce_image, axis=2, tiles=image_size, bottoms=[reduce_image]))
+        net.blobs[tiled_reduce_image].reshape((batch_size, channels, height, width))
+        net.f(Concat(concat_image, axis=1, bottoms=[proj_image, tiled_reduce_image]))
+        assert net.blobs[concat_image].shape == (batch_size, self.config.att_hidden, height, width)
+        net.f(ReLU(comb_image, bottoms=[concat_image]))
+        #reduced_image = proj_image
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
         ## Wordvec construction
         net.f(NumpyData(label, label_data))
@@ -294,7 +311,7 @@ class MultiplicativeFindModule(Module):
         ### to classify at each location of image with filter field of view
         ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[proj_image, label_vec_final, label_vec_bias],
+                bottoms=[comb_image, label_vec_final, label_vec_bias],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),

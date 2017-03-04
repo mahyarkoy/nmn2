@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 
 import apollocaffe
-import caffe
+#import caffe
 
 
 apollocaffe.set_device(0)

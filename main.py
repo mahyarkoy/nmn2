@@ -72,7 +72,7 @@ def auto_main(config):
         if not os.path.isdir(train_path):
             print 'NO MORE BATCHES AVAILABLE AT ' + train_path
             break
-        train_loss, train_acc, _ = \
+        train_loss, train_acc, train_predictions = \
                 do_iter_external(train_path, task, model, config, train=True)
         
         print('=====VALID AT ITERATION %d=====' % i_epoch) 
@@ -89,6 +89,10 @@ def auto_main(config):
         if save_net > 0 and i_epoch%save_net == 0:
             model.save(logs+'/snapshots/model_%d.h5' % i_epoch)
             model.opt_state.save(logs+'/snapshots/model_%d_adastate' % i_epoch)
+
+        ### Store Train prediction
+        with open(logs+"/train_predictions_%d.json" % i_epoch, "w") as pred_f:
+            print >>pred_f, json.dumps(train_predictions, indent=4)
 
         ### Store Validation prediction
         with open(logs+"/val_predictions_%d.json" % i_epoch, "w") as pred_f:
@@ -433,21 +437,22 @@ def visualize(i_datum, datum, model):
     att_blobs = list()
     att_ids = list()
     mod_layout_choice = model.module_layout_choices[i_datum]
+    mod_index = model.nmns[datum.layouts[0].modules].index
     #print model.apollo_net.blobs.keys()
     for i in range(0,10):
-        att_blob_name = "Find_%d_sigmoid" % (mod_layout_choice * 100 + i)
+        att_blob_name = "Find_%d_sigmoid" % (mod_index * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AT'+str(i))
     for i in range(0,10):
-        att_blob_name = "And_%d_prod" % (mod_layout_choice * 100 + i)
+        att_blob_name = "And_%d_prod" % (mod_index * 100 + i)
         if att_blob_name in model.apollo_net.blobs.keys():
             att_blobs.append(att_blob_name)
             att_ids.append('AND'+str(i))
     ext_blob_ids = 'NONE'
     ext_val = -11
     for i in range(0,10):
-        ext_blob_name = "Exists_%d_reduce" % (mod_layout_choice * 100 + i)
+        ext_blob_name = "Exists_%d_reduce" % (mod_index * 100 + i)
         if ext_blob_name in model.apollo_net.blobs.keys():
             ext_blob_ids='AT'+str(i)
             ext_val = model.apollo_net.blobs[ext_blob_name].data[i_datum,...].item()
@@ -504,3 +509,4 @@ def compute_acc(predictions, data, config):
 
 if __name__ == "__main__":
     main()
+

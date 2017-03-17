@@ -17,10 +17,10 @@ classes_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011
 im_class_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/image_class_labels.txt'
 im_path = '/media/evl/Public/Mahyar/Data/CVPRdata/CUB_200_2011/CUB_200_2011/images.txt'
 split_path = '/media/evl/Public/Mahyar/Data/CVPRdata/splits/train_test_split.mat'
-parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2'
-batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches12'
-output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches12'
-log_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches12'
+parse_path = '/media/evl/Public/Mahyar/Data/CVPRdata/sps2_clean'
+batch_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches13'
+output_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches13'
+log_path = '/media/evl/Public/Mahyar/Data/CVPRdata/batches13'
 
 freq_dict = defaultdict(lambda: defaultdict(int))
 train_idf_dict = dict()

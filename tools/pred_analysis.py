@@ -14,6 +14,7 @@ and also how much other words occumpanied that word in each case (contributed to
 import numpy as np
 import json
 from collections import defaultdict
+import matplotlib.pyplot as plt
 
 jdata_path = '/media/evl/Public/Mahyar/Data/CVPRdata/results34/logs/train_predictions_5.json'
 ignore_words = ['is', 'and']
@@ -37,6 +38,7 @@ for d in jdata:
     ann = 1 if d['answer']=='yes' else 0
     gt = 1 if im_cid == sent_cid else 0
     parse_db[parse]['count'] += 1
+    parse_db[parse]['parse'] = parse
     if gt:
         parse_db[parse]['fn'] += 1 - ann
         parse_db[parse]['p'] += 1
@@ -53,6 +55,7 @@ for d in jdata:
         words_count_n[pw] += 1 - gt
         parse_words_list.append(pw)
     parse_db[parse]['word_list'] = parse_words_list
+    parse_db[parse]['word_list_total'] = parse_words_list
                        
 parse_list = parse_db.keys()
 parse_errs = [(pdict['fp']+pdict['fn'])/float(pdict['count']) for pdict in parse_db.values()]
@@ -67,6 +70,7 @@ print 'MAX>>> ', parse_list[sorted_indices[-1]], str(parse_errs[sorted_indices[-
 '''
 Construct a list of filtered words, and a look up index dict. Also number of
 occurances of each word when positive ground truth and when false ground truth.
+We keep only the top 'top_words' words after sorting with total count of words.
 '''
 top_words = 80
 word_list = list()
@@ -112,16 +116,19 @@ for parse, freq in parse_db.items():
         for pw2 in parse_words[pw_i:]:
             idx1 = word_lookup[pw]
             idx2 = word_lookup[pw2]
+            
             freq_mat_fp[idx1, idx2] += freq['fp']
-            freq_mat_fp[idx2, idx1] += freq['fp']
             freq_mat_fn[idx1, idx2] += freq['fn']
-            freq_mat_fn[idx2, idx1] += freq['fn']
             freq_mat_total[idx1, idx2] += freq['count']
-            freq_mat_total[idx2, idx1] += freq['count']
             freq_mat_p[idx1, idx2] += freq['p']
-            freq_mat_p[idx2, idx1] += freq['p']
             freq_mat_n[idx1, idx2] += freq['n']
-            freq_mat_n[idx2, idx1] += freq['n']
+            
+            if idx1 != idx2:
+                freq_mat_fp[idx2, idx1] += freq['fp']
+                freq_mat_fn[idx2, idx1] += freq['fn']
+                freq_mat_total[idx2, idx1] += freq['count']
+                freq_mat_p[idx2, idx1] += freq['p']
+                freq_mat_n[idx2, idx1] += freq['n']
 ### check symmetry. Note that these wont be symmetric after normalization.
 assert((freq_mat_fn.transpose() == freq_mat_fn).all())
 
@@ -174,21 +181,25 @@ bias_denum = 0.000001
 '''
 Calculate error mat on total domain: positive and negative
 '''
-### N(X,F)
-n_x_f = np.diag(freq_mat_fp) + np.diag(freq_mat_fn)
-n_x_f = n_x_f.reshape(n_x_f.shape[0], 1)
 
 ### N(X)
 n_x = np.diag(freq_mat_total)
 n_x = n_x.reshape(n_x.shape[0],1)
+aug_n_x = np.sum(freq_mat_total, axis=1).reshape((freq_mat_total.shape[0],1)) - n_x
 
 ### N(X,Y,F)
 freq_mat = freq_mat_fp + freq_mat_fn
 
-### P(Y|X,F) / P(Y|X) = (N(X,Y,F) / N(X,F) ) / ( N(X,Y) | N(X) )
-effect_mat = (freq_mat / (n_x_f+bias_denum) + bias_denum) / (freq_mat_total / (n_x+bias_denum) + bias_denum)
+### N(X,F)
+n_x_f = np.diag(freq_mat)
+n_x_f = n_x_f.reshape(n_x_f.shape[0], 1)
+aug_n_x_f = np.sum(freq_mat, axis=1).reshape((freq_mat.shape[0],1)) - n_x_f
+
 ### P(F|X,Y) = N(X,Y,F) / N(X,Y)
 freq_mat_norm = freq_mat / (freq_mat_total + bias_denum)
+### P(Y|X,F) / P(Y|X) = ( N(X,Y,F) / N(X,F) ) / ( N(X,Y) / N(X) )
+effect_mat = (freq_mat / (aug_n_x_f+bias_denum) + bias_denum) / (freq_mat_total / aug_n_x + bias_denum)
+
 effect_mat[range(effect_mat.shape[0]), range(effect_mat.shape[0])] = 0
 effect_mat += np.diag(np.diag(freq_mat_norm))
 
@@ -198,15 +209,18 @@ Calculate error mat on positive domain
 ### N(X,F,P)
 n_x_f_p = np.diag(freq_mat_fn)
 n_x_f_p = n_x_f_p.reshape(n_x_f_p.shape[0], 1)
+aug_n_x_f_p = np.sum(freq_mat_fn, axis=1).reshape((freq_mat_fn.shape[0],1)) - n_x_f_p
 
 ### N(X,P)
 n_x_p = np.diag(freq_mat_p)
 n_x_p = n_x_p.reshape(n_x_p.shape[0], 1)
+aug_n_x_p = np.sum(freq_mat_p, axis=1).reshape((freq_mat_p.shape[0],1)) - n_x_p
 
-### P(Y|X,F,P) / P(Y|X,P) = (N(X,Y,F,P) / N(X,F,P) ) / ( N(X,Y,P) | N(X,P) )
-effect_mat_p = (freq_mat_fn / (n_x_f_p+bias_denum) + bias_denum) / (freq_mat_p / (n_x_p+bias_denum) + bias_denum)
 ### P(F|X,Y,P) = N(X,Y,F,P) / N(X,Y,P)
 freq_mat_norm_p = freq_mat_fn / (freq_mat_p + bias_denum)
+### P(Y|X,F,P) / P(Y|X,P) = (N(X,Y,F,P) / N(X,F,P) ) / ( N(X,Y,P) / N(X,P) )
+effect_mat_p = (freq_mat_fn / (aug_n_x_f_p+bias_denum) + bias_denum) / (freq_mat_p / (aug_n_x_p+bias_denum) + bias_denum)
+
 effect_mat_p[range(effect_mat_p.shape[0]), range(effect_mat_p.shape[0])] = 0
 effect_mat_p += np.diag(np.diag(freq_mat_norm_p))
 
@@ -216,26 +230,124 @@ Calculate error mat on negative domain
 ### N(X,F,N)
 n_x_f_n = np.diag(freq_mat_fp)
 n_x_f_n = n_x_f_n.reshape(n_x_f_n.shape[0], 1)
-
+aug_n_x_f_n = np.sum(freq_mat_fp, axis=1).reshape((freq_mat_fn.shape[0],1)) - n_x_f_n
+                  
 ### N(X,N)
 n_x_n = np.diag(freq_mat_n)
 n_x_n = n_x_n.reshape(n_x_n.shape[0], 1)
+aug_n_x_n = np.sum(freq_mat_n, axis=1).reshape((freq_mat_n.shape[0],1)) - n_x_n
 
-### P(Y|X,F,N) / P(Y|X,N) = (N(X,Y,F,N) / N(X,F,N) ) / ( N(X,Y,N) | N(X,N) )
-effect_mat_n = (freq_mat_fp / (n_x_f_n+bias_denum) + bias_denum) / (freq_mat_n / (n_x_n+bias_denum) + bias_denum)
 ### P(F|X,Y,N) = N(X,Y,F,N) / N(X,Y,N)
 freq_mat_norm_n = freq_mat_fp / (freq_mat_n + bias_denum)
+### P(Y|X,F,N) / P(Y|X,N) = (N(X,Y,F,N) / N(X,F,N) ) / ( N(X,Y,N) / N(X,N) )
+effect_mat_n = (freq_mat_fp / (aug_n_x_f_n+bias_denum) + bias_denum) / (freq_mat_n / (aug_n_x_n+bias_denum) + bias_denum)
+
 effect_mat_n[range(effect_mat_n.shape[0]), range(effect_mat_n.shape[0])] = 0
 effect_mat_n += np.diag(np.diag(freq_mat_norm_n))
 
 '''
 Calculate frequncy mat
 '''
-### P(Y|X) = N(X,Y) / N(X)
-dist_mat = freq_mat_total / n_x
+### P(Y|X) = N(X,Y) / N(X) off diag
+dist_mat = freq_mat_total / aug_n_x
+### P(x) = N(X) / N(all) on diag
 dist_diag = n_x / np.sum(n_x)
 dist_mat[range(dist_mat.shape[0]), range(dist_mat.shape[0])] = 0
 dist_mat += np.diag(dist_diag[:,0])
+
+'''
+Calculate entropy of each word, find correlation between entropy and error of
+each word
+'''
+p_y_x_f = freq_mat / n_x
+p_x_f = np.diag(p_y_x_f)
+
+p_y_x = freq_mat_total / aug_n_x
+p_y_x[range(p_y_x.shape[0]), range(p_y_x.shape[0])] = 0
+h_y_x = -1.0 * np.log2(p_y_x+bias_denum).dot(p_y_x.transpose())
+h_x = np.diag(h_y_x)
+
+concat = np.asarray([p_x_f,h_x])
+cov_mat = np.cov(concat)
+corr = cov_mat[0,1] / (np.prod(np.diag(cov_mat))**0.5)
+
+word_freq_order = np.argsort(n_x[:,0])[::-1]
+plt.figure(0, figsize=(10,12))
+plt.subplot(311)
+plt.plot(p_x_f[word_freq_order], 'b')
+plt.grid()
+plt.title('Word Error')
+
+plt.subplot(312)
+plt.plot(h_x[word_freq_order], 'r')
+plt.grid()
+plt.title('Word Entropy')
+
+plt.subplot(313)
+plt.plot(n_x[:,0][word_freq_order], 'm')
+ax = plt.gca()
+ax.set_yscale('log')
+plt.grid(True, which='both')
+plt.title('Word Count')
+
+plt.savefig('/home/mahyar/nmn_word_plot.pdf')
+
+'''
+Calculate correlation between variation and error of each parse
+'''
+### Sort parse_db values with frequency
+parse_db_vals = parse_db.values()
+parse_db_counts = [v['count'] for v in parse_db_vals]
+parse_db_vals = [parse_db_vals[i] for i in np.argsort(parse_db_counts)[::-1]]
+
+### error of each parse
+parse_err = list()
+for v in parse_db_vals:
+    parse_err.append( (v['fn']+v['fp'])*1.0 / v['count'])
+parse_err = np.array(parse_err)
+
+### variation of each parse: 1 - N(S) / N(S' ~ S)
+parse_freq = np.zeros((parse_err.shape[0], parse_err.shape[0]))
+for i, v in enumerate(parse_db_vals):
+    for j in range(i, len(parse_db_vals)):
+        if len( set(v['word_list_total']).intersection(set(parse_db_vals[j]['word_list_total'])) ) > 0:
+            parse_freq[i,j] = parse_db_vals[j]['count']
+            parse_freq[j,i] = v['count']
+
+parse_freq_diag = np.diag(parse_freq)
+parse_var = 1 - parse_freq_diag * 1.0 / np.sum(parse_freq, axis=1)
+### correlation
+parse_concat = np.asarray([parse_err, parse_var])
+parse_cov_mat = np.cov(parse_concat)
+parse_corr = parse_cov_mat[0,1] / (np.prod(np.diag(parse_cov_mat))**0.5)
+
+plt.figure(1,figsize=(10,12))
+plt.subplot(311)
+plt.plot(parse_err, 'b')
+plt.title('Parse Error')
+ax = plt.gca()
+start, end = ax.get_xlim()
+ax.xaxis.set_ticks(np.arange(start, end, 100))
+plt.grid()
+
+plt.subplot(312)
+plt.plot(parse_var, 'r')
+plt.title('Parse Variations')
+ax = plt.gca()
+start, end = ax.get_xlim()
+ax.xaxis.set_ticks(np.arange(start, end, 100))
+plt.grid()
+
+plt.subplot(313)
+plt.plot(parse_freq_diag, 'm')
+plt.title('Parse Count')
+ax = plt.gca()
+start, end = ax.get_xlim()
+ax.xaxis.set_ticks(np.arange(start, end, 100))
+ax.set_yscale('log')
+plt.grid(True, which='both')
+
+plt.savefig('/home/mahyar/nmn_parse_plot.pdf')
 
 '''
 ### P(Y|X,F,N) = N(X,Y,F,N) / N(X,F,N) off diag
@@ -251,6 +363,7 @@ freq_mat_fn_norm = normalize_mat(freq_mat_fn, wnum_p)
 freq_mat_norm = freq_mat / (freq_mat_total + 0.00001)
 '''
 ### Save as json to read by d3
+
 jdata_list = list()
 for idx, w in enumerate(word_list):
     freq_dict = dict()

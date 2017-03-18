@@ -11,7 +11,7 @@ from misc.visualizer import visualizer
 import models
 from models.nmn import MLPFindModule, MultiplicativeFindModule
 import tasks
-
+from collections import defaultdict
 import apollocaffe
 import argparse
 import json
@@ -297,7 +297,9 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
                 jd = json.load(jf)
                 batch_data_orig = task.read_batch_json(jd)
 
-            batch_data, imc = reorder_batch(batch_data_orig)
+            batch_data = batch_data_orig
+            imc = None
+            #batch_data, imc = reorder_batch(batch_data_orig)
             data_size += len(batch_data)
             batch_loss, batch_acc, batch_preds = do_batch(
                     batch_data, model, config, train, vis, im_count=imc)
@@ -333,7 +335,10 @@ def reorder_batch(data):
     for idx, d in enumerate(data):
         im_db[d.im_name].append(idx)
     im_idx_mat = np.asarray(im_db.values())
-    new_data = [data[idx] for c in range(im_idx_mat.shape[1]) for idx in im_idx_mat[:,c]]
+    print im_idx_mat.shape
+    print len(data)
+    print im_db.values()[0]
+    new_data = [data[idx] for c in range(im_idx_mat.shape[-1]) for idx in im_idx_mat[:,c]]
     assert len(new_data) == len(data)
     return new_data, im_idx_mat.shape[0]
 

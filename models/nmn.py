@@ -229,18 +229,20 @@ class MultiplicativeFindModule(Module):
         # compute attention mask
         ### Project images to att_hidden channels
         net.f(Convolution(
-                proj_image, (1, 1), self.config.att_hidden/2, bottoms=[features],
+                proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
                 param_names=[proj_image_param_weight, proj_image_param_bias]))
 
-        net.f(InnerProduct(reduce_image, self.config.att_hidden/2, bottoms=[features],
-                param_names=[reduce_image_param_weight, reduce_image_param_bias]))
+        #net.f(InnerProduct(reduce_image, self.config.att_hidden/2, bottoms=[features],
+        #        param_names=[reduce_image_param_weight, reduce_image_param_bias]))
 
-        net.blobs[reduce_image].reshape((batch_size, self.config.att_hidden/2,1,1))
-        net.f(Tile(tiled_reduce_image, axis=2, tiles=image_size, bottoms=[reduce_image]))
-        net.blobs[tiled_reduce_image].reshape((batch_size, channels, height, width))
-        net.f(Concat(concat_image, axis=1, bottoms=[proj_image, tiled_reduce_image]))
-        assert net.blobs[concat_image].shape == (batch_size, self.config.att_hidden, height, width)
-        net.f(ReLU(comb_image, bottoms=[concat_image]))
+        #net.blobs[reduce_image].reshape((batch_size, self.config.att_hidden/2,1,1))
+        #net.f(Tile(tiled_reduce_image, axis=2, tiles=image_size, bottoms=[reduce_image]))
+        #net.blobs[tiled_reduce_image].reshape((batch_size, channels, height, width))
+        #net.f(Concat(concat_image, axis=1, bottoms=[proj_image, tiled_reduce_image]))
+        #assert net.blobs[concat_image].shape == (batch_size, self.config.att_hidden, height, width)
+        #net.f(ReLU(comb_image, bottoms=[concat_image]))
+        net.f(ReLU(comb_image, bottoms=[proj_image]))
+
         #reduced_image = proj_image
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
         ## Wordvec construction

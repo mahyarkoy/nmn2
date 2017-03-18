@@ -204,7 +204,7 @@ def configure():
     apollocaffe.set_random_seed(0)
     np.random.seed(0)
     random.seed(0)
-    apollocaffe.set_device(1)
+    apollocaffe.set_device(0)
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
@@ -337,9 +337,9 @@ def reorder_batch(data):
     for idx, d in enumerate(data):
         im_db[d.im_name].append(idx)
     im_idx_mat = np.asarray(im_db.values())
-    print im_idx_mat.shape
-    print len(data)
-    print im_db.values()[0]
+    #print im_idx_mat.shape
+    #print len(data)
+    #print im_db.values()[0]
     new_data = [data[idx] for c in range(im_idx_mat.shape[-1]) for idx in im_idx_mat[:,c]]
     assert len(new_data) == len(data)
     return new_data, im_idx_mat.shape[0]

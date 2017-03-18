@@ -175,7 +175,9 @@ class MultiplicativeFindModule(Module):
 
         net = apollo_net
 
-        batch_size, channels, height, width = net.blobs[features].shape
+        _, channels, height, width = net.blobs[features].shape
+        ### important for broadcasting images, batch_size != image_num
+        batch_size = label_data.shape[0]
         image_size = width * height
         filter_height = 1
         filter_width = 1
@@ -732,9 +734,13 @@ class NmnModel:
         features = "FEATURES_%d_data" % index
         features_dropout = "FEATURES_%d_dropout" % index
 
-        if features not in net.blobs:
-            net.f(DummyData(features, feature_data.shape))
-        net.blobs[features].data[...] = feature_data
+        #if features not in net.blobs:
+        #    net.f(DummyData(features, feature_data.shape))
+        #net.blobs[features].data[...] = feature_data
+        net.f(NumpyData(features, feature_data))
+        print ">>>FEAT_SIZE==="
+        print net.blobs[features].shape
+        print "==============="
 
         if dropout:
             net.f(Dropout(features_dropout, 0.5, bottoms=[features]))

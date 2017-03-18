@@ -100,6 +100,7 @@ def auto_main(config):
 
         ### TEST RESULTS
         if i_epoch % 5 == 0 and i_epoch != 0:
+            print('=====TEST AT ITERATION %d=====' % i_epoch)            
             test_loss, test_acc, test_predictions = \
                     do_iter_external(config.task.load_test, task, model, config)
             logging.info(
@@ -110,7 +111,8 @@ def auto_main(config):
                 print >>pred_f, json.dumps(test_predictions)
 
         ### TEST_TRAIN RESULTS
-        if i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
+        if False and i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
+            print('=====TEST_TRAIN AT ITERATION %d=====' % i_epoch)            
             tt_loss, tt_acc, tt_predictions = \
                     do_iter_external(config.task.load_test_train, task, model, config)
             logging.info(
@@ -297,9 +299,9 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
                 jd = json.load(jf)
                 batch_data_orig = task.read_batch_json(jd)
 
-            batch_data = batch_data_orig
-            imc = None
-            #batch_data, imc = reorder_batch(batch_data_orig)
+            #batch_data = batch_data_orig
+            #imc = None
+            batch_data, imc = reorder_batch(batch_data_orig)
             data_size += len(batch_data)
             batch_loss, batch_acc, batch_preds = do_batch(
                     batch_data, model, config, train, vis, im_count=imc)
@@ -378,7 +380,8 @@ def forward(data, model, config, train, vis, im_count=None):
     rel_features = None
     has_rel_features = data[0].load_rel_features() is not None
     questions = np.ones((len(data), max_len)) * NULL_ID
-    features = np.zeros((len(data), channels, height, width))
+    #features = np.zeros((len(data), channels, height, width))
+    features = np.zeros((im_count, channels, height, width))
     layout_reprs = np.zeros(
             (len(data), max_layouts, len(MODULE_INDEX) + 7))
     for i, datum in enumerate(data):
@@ -455,6 +458,7 @@ def visualize(i_datum, datum, model):
     att_blobs = list()
     att_ids = list()
     mod_layout_choice = model.module_layout_choices[i_datum]
+    ### FIXED: mod_index is not equal mod_layout_choice
     mod_index = model.nmns[datum.layouts[0].modules].index
     #print model.apollo_net.blobs.keys()
     for i in range(0,10):

@@ -21,6 +21,7 @@ import numpy as np
 import yaml
 from os import walk
 import os
+import cPickle as cpk
 
 def main():
     ### Read config file and set config variables
@@ -107,8 +108,11 @@ def auto_main(config):
                     "TEST_%5d  |  %8.3f  |  %8.3f",
                     i_epoch,
                     test_loss, test_acc)
-            with open(logs+"/test_predictions_%d.json" % i_epoch, "w") as pred_f:
-                print >>pred_f, json.dumps(test_predictions)
+            #with open(logs+"/test_predictions_%d.json" % i_epoch, "w") as pred_f:
+            #    print >>pred_f, json.dumps(test_predictions)
+            with open(logs+"/test_predictions_%d.cpk" % i_epoch, "wb") as pred_f:
+                cpk.dump(test_predictions, pred_f, -1)
+
 
         ### TEST_TRAIN RESULTS
         if False and i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):

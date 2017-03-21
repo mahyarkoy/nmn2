@@ -204,7 +204,7 @@ def configure():
     apollocaffe.set_random_seed(0)
     np.random.seed(0)
     random.seed(0)
-    apollocaffe.set_device(0)
+    apollocaffe.set_device(1)
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(

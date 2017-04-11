@@ -29,7 +29,7 @@ model:
 
 opt:
   batch_size: 800
-  iters: 100
+  iters: 10
   dropout: true
   multiclass: false
 

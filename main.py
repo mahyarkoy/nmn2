@@ -74,11 +74,11 @@ def auto_main(config):
             print 'NO MORE BATCHES AVAILABLE AT ' + train_path
             break
         train_loss, train_acc, train_predictions = \
-                do_iter_external(train_path, task, model, config, train=True)
+                do_iter_external(train_path, task, model, config, train=True, preds_path=logs+'/preds/train_predictions_%d'% i_epoch)
         
         print('=====VALID AT ITERATION %d=====' % i_epoch) 
         val_loss, val_acc, val_predictions = \
-                do_iter_external(config.task.load_val, task, model, config, vis='single')
+                do_iter_external(config.task.load_val, task, model, config, vis='single', preds_path=logs+'/preds/val_predictions_%d'% i_epoch)
 
         logging.info(
                 "%5d  |  %8.3f  %8.3f  |  %8.3f  %8.3f",
@@ -92,39 +92,39 @@ def auto_main(config):
             model.opt_state.save(logs+'/snapshots/model_%d_adastate' % i_epoch)
 
         ### Store Train prediction
-        with open(logs+"/train_predictions_%d.json" % i_epoch, "w") as pred_f:
-            print >>pred_f, json.dumps(train_predictions, indent=4)
+        #with open(logs+"/train_predictions_%d.json" % i_epoch, "w") as pred_f:
+        #    print >>pred_f, json.dumps(train_predictions, indent=4)
 
         ### Store Validation prediction
-        with open(logs+"/val_predictions_%d.json" % i_epoch, "w") as pred_f:
-            print >>pred_f, json.dumps(val_predictions, indent=4)
+        #with open(logs+"/val_predictions_%d.json" % i_epoch, "w") as pred_f:
+        #    print >>pred_f, json.dumps(val_predictions, indent=4)
 
         ### TEST RESULTS
         if i_epoch % 5 == 0 and i_epoch != 0:
             print('=====TEST AT ITERATION %d=====' % i_epoch)            
             test_loss, test_acc, test_predictions = \
-                    do_iter_external(config.task.load_test, task, model, config)
+                    do_iter_external(config.task.load_test, task, model, config, preds_path=logs+'/preds/test_predictions_%d'% i_epoch)
             logging.info(
                     "TEST_%5d  |  %8.3f  |  %8.3f",
                     i_epoch,
                     test_loss, test_acc)
             #with open(logs+"/test_predictions_%d.json" % i_epoch, "w") as pred_f:
             #    print >>pred_f, json.dumps(test_predictions)
-            with open(logs+"/test_predictions_%d.cpk" % i_epoch, "wb") as pred_f:
-                cpk.dump(test_predictions, pred_f, -1)
+            #with open(logs+"/test_predictions_%d.cpk" % i_epoch, "wb") as pred_f:
+            #    cpk.dump(test_predictions, pred_f, -1)
 
 
         ### TEST_TRAIN RESULTS
         if False and i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
             print('=====TEST_TRAIN AT ITERATION %d=====' % i_epoch)            
             tt_loss, tt_acc, tt_predictions = \
-                    do_iter_external(config.task.load_test_train, task, model, config)
+                    do_iter_external(config.task.load_test_train, task, model, config, preds_path=logs+'/preds/test_train_predictions_%d'% i_epoch)
             logging.info(
                     "TEST_TRAIN_%5d  |  %8.3f  |  %8.3f",
                     i_epoch,
                     tt_loss, tt_acc)
-            with open(logs+"/test_train_predictions_%d.json" % i_epoch, "w") as pred_f:
-                print >>pred_f, json.dumps(tt_predictions)
+            #with open(logs+"/test_train_predictions_%d.json" % i_epoch, "w") as pred_f:
+            #    print >>pred_f, json.dumps(tt_predictions)
         
         i_epoch += 1
 
@@ -208,7 +208,7 @@ def configure():
     apollocaffe.set_random_seed(0)
     np.random.seed(0)
     random.seed(0)
-    apollocaffe.set_device(1)
+    apollocaffe.set_device(0)
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument(
@@ -286,15 +286,18 @@ def do_iter(task_set, model, config, train=False, vis=False):
     acc /= n_batches
     return loss, acc, predictions
 
-def do_iter_external(pathname, task, model, config, train=False, vis=None):
+def do_iter_external(pathname, task, model, config, train=False, vis=None, preds_path=None):
     loss = 0.0
     acc = 0.0
     predictions = []
     n_batches = 0
     data_size = 0
     ### Read batches from file
+    vis_path = config.log_path+'/vis/'+pathname.split('/')[-1]
     if vis:
-        visualizer.begin(config.log_path+'/vis/'+pathname.split('/')[-1], 100)
+        visualizer.begin(vis_path, 100)
+    if preds_path:
+        os.system('mkdir -p '+preds_path)
 
     for (pname, dnames, fnames) in walk(pathname):
         for fn in fnames:
@@ -312,8 +315,10 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
 
             loss += batch_loss
             acc += batch_acc
-            predictions += batch_preds
+            ### this collection of predictions can over flow memory
+            #predictions += batch_preds
             n_batches += 1
+            assert (len(batch_preds) == len(batch_data)), 'Missing predictions from batch_data: '+fn
 
             if vis == 'single':
                 i_datum = np.random.choice(len(batch_data))
@@ -322,6 +327,9 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
             elif vis == 'all':
                 for i_datum, datum in enumerate(batch_data):
                     visualize(i_datum, datum, model)
+            if preds_path:
+                with open(preds_path+'/'+fn, 'w+') as pf:
+                    print >>pf, json.dumps(batch_preds, indent=4) 
 
             if hasattr(config.task, 'debug'):
                 if n_batches >= config.task.debug:
@@ -331,7 +339,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None):
 
     if n_batches == 0:
         return 0, 0, dict()
-    assert len(predictions) == data_size
+
     loss /= n_batches
     acc /= n_batches
     return loss, acc, predictions

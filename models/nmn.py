@@ -1,4 +1,4 @@
-from layers.reinforce import Index, AsLoss, PyL1Loss, PyL1LossWeighted
+from layers.reinforce import Index, AsLoss, PyL1Loss, PyL1LossWeighted, PySumLoss
 from misc.indices import QUESTION_INDEX, MODULE_INDEX, ANSWER_INDEX, UNK_ID
 from misc import util
 from opt import adadelta
@@ -845,9 +845,11 @@ class NmnModel:
         else:
             net.f(NumpyData(target, answer_data))
             acc_loss = net.f(SoftmaxWithLoss(
-                loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=1))
+                loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=1.0))
             #acc_loss = net.f(MultinomialLogisticLoss(
-            #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID))
+            #    loss, bottoms=[self.prediction, target], ignore_label=UNK_ID, loss_weight=0.1))
+            #acc_loss = net.f(PySumLoss(
+            #    loss, bottoms=[self.prediction, target], loss_weight=1.0))
 
             net.f(Softmax(datum_loss, bottoms=[self.prediction]))
 

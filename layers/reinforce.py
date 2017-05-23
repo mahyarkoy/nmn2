@@ -76,3 +76,22 @@ class PyL1LossWeighted(PyLayer):
             focus[index] = ((index[0] - colc)**2 + (index[1] - rowc)**2 ) / self.sigma**2
         focus = 1-np.exp(-focus)
         return focus
+
+class PySumLoss(PyLayer):
+    def __init__(self, name, loss_weight=1.0, **kwargs):
+        PyLayer.__init__(self, name, dict(), **kwargs)
+        self.loss_weight = loss_weight
+
+    def reshape(self, bottom, top):
+        top[0].reshape((1,))
+
+    ### loss = sum_i(f(x_ij))/N for j being ground truth
+    def forward(self, bottom, top):
+        top[0].reshape((1,))
+        #print bottom[0].data[range(bottom[0].shape[0]),bottom[1].data.astype(int)]
+        top[0].data[...] = -1.0 * self.loss_weight * np.sum(bottom[0].data[range(bottom[0].shape[0]),bottom[1].data.astype(int)]) / bottom[0].shape[0]
+        return top[0].data.item()
+
+    ### grad: 1/N for gt class, zero otherwise
+    def backward(self, top, bottom):
+        bottom[0].diff[range(bottom[0].shape[0]),bottom[1].data.astype(int)] += -1.0 * self.loss_weight / bottom[0].shape[0]

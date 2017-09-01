@@ -205,9 +205,14 @@ class MultiplicativeFindModule(Module):
         label_att_2 = "Find_%d_label_att_2" % index
         label_att_norm = "Find_%d_label_att_norm" % index
         label_att_mask = "Find_%d_label_att_mask" % index
-        label_class = "Find_%d_label_class" % index
-        label_class_1 = "Find_%d_label_class_1" % index
-        label_class_2 = "Find_%d_label_class_2" % index 
+        wordvec = "Find_%d_wordvec" % index
+        wordvec_h1 = "Find_%d_wordvec_h1" % index
+        wordvec_h2 = "Find_%d_wordvec_h2" % index
+        wordvec_h1_act = "Find_%d_wordvec_h1_act" % index
+        wordvec_h2_act = "Find_%d_wordvec_h2_act" % index 
+        wordvec_d1 = "Find_%d_wordvec_d1" % index 
+        wordvec_d2 = "Find_%d_wordvec_d2" % index 
+
 
         proj_image_param_weight = "Find_proj_image_param_weight"
         proj_image_param_bias = "Find_proj_image_param_bias"
@@ -223,10 +228,10 @@ class MultiplicativeFindModule(Module):
         label_att_param_weights_1 = "Find_label_att_param_weights_1"
         label_att_param_bias_1 = "Find_label_att_param_bias_1"
         
-        label_class_param_weights = "Find_label_class_param_weights"
-        label_class_param_bias = "Find_label_class_param_bias"
-        label_class_param_weights_1 = "Find_label_class_param_weights_1"
-        label_class_param_bias_1 = "Find_label_class_param_bias_1"        
+        wordvec_h1_weights = "Find_wordvec_h1_weights"
+        wordvec_h1_bias = "Find_wordvec_h1_bias"        
+        wordvec_h2_weights = "Find_wordvec_h2_weights"
+        wordvec_h2_bias = "Find_wordvec_h2_bias"
 
         # compute attention mask
         ### Project images to att_hidden channels
@@ -248,6 +253,7 @@ class MultiplicativeFindModule(Module):
         #reduced_image = proj_image
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
         ## Wordvec construction
+        '''
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
                 label_vec, self.config.att_hidden*filter_width*filter_height, len(MODULE_INDEX),
@@ -260,18 +266,33 @@ class MultiplicativeFindModule(Module):
         ## Projection of word_vec to hidden layer
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
-                label_vec, 256, len(MODULE_INDEX),
+                wordvec, 4, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param]))
-        net.f(InnerProduct(label_class_1, self.config.att_hidden*filter_width*filter_height,
-                            bottoms=[label_vec],
-                            param_names=[label_class_param_weights_1, label_class_param_bias_1]))
-        net.f(TanH(label_class_2, bottoms=[label_class_1]))
-        net.f(InnerProduct(label_class, self.config.att_hidden*filter_width*filter_height,
-                            bottoms=[label_class_2],
-                            param_names=[label_class_param_weights, label_class_param_bias]))
-        '''
-        net.blobs[label_class].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
-        net.blobs[label_vec_bias].reshape((batch_size, 1, 1, 1))
+        if 
+        net.f(BatchNorm(wordvec_bn, bottoms=[label], ))
+        ## ip to att_hidden with relu and dropout
+        net.f(InnerProduct(wordvec_h1, self.config.att_hidden*filter_width*filter_height//8,
+                            bottoms=[wordvec],
+                            param_names=[wordvec_h1_weights, wordvec_h1_bias]))
+        net.f(ReLU(wordvec_h1_act, bottoms=[wordvec_h1]))
+        if dropout:
+            net.f(Dropout(wordvec_d1, 0.5, bottoms=[wordvec_h1_act]))
+        else:
+            wordvec_d1 = wordvec_h1_act
+
+        ## ip to att_hidden with dropout
+        net.f(InnerProduct(wordvec_h2, self.config.att_hidden*filter_width*filter_height,
+                            bottoms=[wordvec_d1],
+                            param_names=[wordvec_h2_weights, wordvec_h2_bias]))
+        #if dropout:
+        #    net.f(Dropout(wordvec_d2, 0.5, bottoms=[wordvec_h2]))
+        #else:
+        #    wordvec_d2 = wordvec_h2
+        wordvec_d2 = wordvec_h2
+
+        ## reshape to 2d filter shape
+        net.blobs[wordvec_d2].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
+        #net.blobs[wordvec_d2b].reshape((batch_size, 1, 1, 1))
 
         ### Legacy version, with no image projection
         '''
@@ -302,12 +323,6 @@ class MultiplicativeFindModule(Module):
         # net.f(PyL1Loss(word_l1norm, loss_weight=10, bottoms=[label_vec]))
         #net.f(PyL1LossWeighted(word_l1norm, loss_weight=0.01, sigma=1, dim=(filter_height,filter_width), bottoms=[label_att_mask]))
 
-        if dropout:
-            net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_class]))
-            label_vec_final = label_vec_dropout
-        else:
-            label_vec_final = label_class
-
         ### Multiply label attention mask with label classifying weights
         #net.f(Eltwise(label_filter, 'PROD', bottoms=[label_vec_final, label_att_mask]))
 
@@ -315,7 +330,7 @@ class MultiplicativeFindModule(Module):
         ### to classify at each location of image with filter field of view
         ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[comb_image, label_vec_final, label_vec_bias],
+                bottoms=[comb_image, wordvec_d2],#, wordvec_d2b],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),
@@ -418,12 +433,13 @@ class RelateModule(Module):
 class AndModule(Module):
     def forward(self, index, label_data, bottoms, features, rel_features, dropout, apollo_net):
         net = apollo_net
-        assert len(bottoms) >= 2
-        assert all(net.blobs[l].shape[1] == 1 for l in bottoms)
-
+        #assert len(bottoms) >= 2
         prod = "And_%d_prod" % index
-
-        net.f(Eltwise(prod, "PROD", bottoms=bottoms))
+        assert all(net.blobs[l].shape[1] == 1 for l in bottoms)
+        if len(bottoms) == 1:
+            prod = bottoms[0]
+        else:
+            net.f(Eltwise(prod, "PROD", bottoms=bottoms))
 
         return prod
 
@@ -738,9 +754,9 @@ class NmnModel:
         #    net.f(DummyData(features, feature_data.shape))
         #net.blobs[features].data[...] = feature_data
         net.f(NumpyData(features, feature_data))
-        print ">>>FEAT_SIZE==="
-        print net.blobs[features].shape
-        print "==============="
+        #print ">>>FEAT_SIZE==="
+        #print net.blobs[features].shape
+        #print "==============="
 
         if dropout:
             net.f(Dropout(features_dropout, 0.5, bottoms=[features]))

@@ -22,6 +22,7 @@ import yaml
 from os import walk
 import os
 import cPickle as cpk
+from progressbar import ETA, Bar, Percentage, ProgressBar
 
 def main():
     ### Read config file and set config variables
@@ -60,25 +61,26 @@ def auto_main(config):
         ### Load model if required, only once after the 0-th iteration
         if i_epoch == 0 and hasattr(config.model, 'load_model'):
             print('=====PRE-LOADING THE NET=====')
-            train_path = config.task.load_train + '/itr_' + str(i_epoch)
+            train_paths = [p+'/itr_'+str(i_epoch) for p in config.task.load_train.split('|')]
             train_loss, train_acc, _ = \
-                do_iter_external(train_path, task, model, config, train=False)
+                do_iter_external(train_paths, task, model, config, train=False)
             model.load(config.model.load_model)
             if hasattr(config.model, 'load_adastate'):
                 model.opt_state.load(config.model.load_adastate)
             i_epoch = 10 ### Set to what ever epoch should be continued
 
         print('=====TRAIN AT ITERATION %d=====' % i_epoch)            
-        train_path = config.task.load_train + '/itr_' + str(i_epoch)
-        if not os.path.isdir(train_path):
-            print 'NO MORE BATCHES AVAILABLE AT ' + train_path
-            break
+        train_paths = [p+'/itr_'+str(i_epoch) for p in config.task.load_train.split('|')]
+        for p in train_paths:
+            if not os.path.isdir(p):
+                print 'NO MORE BATCHES AVAILABLE AT ' + train_paths
+                return
         train_loss, train_acc, train_predictions = \
-                do_iter_external(train_path, task, model, config, train=True, preds_path=logs+'/preds/train_predictions_%d'% i_epoch)
+                do_iter_external(train_paths, task, model, config, train=True, preds_path=logs+'/preds/train_predictions_%d'% i_epoch)
         
         print('=====VALID AT ITERATION %d=====' % i_epoch) 
         val_loss, val_acc, val_predictions = \
-                do_iter_external(config.task.load_val, task, model, config, vis='single', preds_path=logs+'/preds/val_predictions_%d'% i_epoch)
+                do_iter_external([config.task.load_val], task, model, config, vis='single', preds_path=logs+'/preds/val_predictions_%d'% i_epoch)
 
         logging.info(
                 "%5d  |  %8.3f  %8.3f  |  %8.3f  %8.3f",
@@ -103,7 +105,7 @@ def auto_main(config):
         if i_epoch % 5 == 0 and i_epoch != 0:
             print('=====TEST AT ITERATION %d=====' % i_epoch)            
             test_loss, test_acc, test_predictions = \
-                    do_iter_external(config.task.load_test, task, model, config, preds_path=logs+'/preds/test_predictions_%d'% i_epoch)
+                    do_iter_external([config.task.load_test], task, model, config, preds_path=logs+'/preds/test_predictions_%d'% i_epoch)
             logging.info(
                     "TEST_%5d  |  %8.3f  |  %8.3f",
                     i_epoch,
@@ -118,7 +120,7 @@ def auto_main(config):
         if False and i_epoch % 5 == 0 and i_epoch != 0 and hasattr(config.task, 'load_test_train'):
             print('=====TEST_TRAIN AT ITERATION %d=====' % i_epoch)            
             tt_loss, tt_acc, tt_predictions = \
-                    do_iter_external(config.task.load_test_train, task, model, config, preds_path=logs+'/preds/test_train_predictions_%d'% i_epoch)
+                    do_iter_external([config.task.load_test_train], task, model, config, preds_path=logs+'/preds/test_train_predictions_%d'% i_epoch)
             logging.info(
                     "TEST_TRAIN_%5d  |  %8.3f  |  %8.3f",
                     i_epoch,
@@ -254,6 +256,7 @@ def do_iter(task_set, model, config, train=False, vis=False):
     predictions = []
     n_batches = 0
 
+    
     # sort first to guarantee deterministic behavior with fixed seed
     data = list(sorted(task_set.data))
     np.random.shuffle(data)
@@ -286,23 +289,37 @@ def do_iter(task_set, model, config, train=False, vis=False):
     acc /= n_batches
     return loss, acc, predictions
 
-def do_iter_external(pathname, task, model, config, train=False, vis=None, preds_path=None):
+def do_iter_external(pathnames, task, model, config, train=False, vis=None, preds_path=None):
     loss = 0.0
     acc = 0.0
     predictions = []
     n_batches = 0
     data_size = 0
+
     ### Read batches from file
-    vis_path = config.log_path+'/vis/'+pathname.split('/')[-1]
+    vis_path = config.log_path+'/vis/'+pathnames[0].split('/')[-1]
     if vis:
         visualizer.begin(vis_path, 100)
     if preds_path:
         os.system('mkdir -p '+preds_path)
 
-    for (pname, dnames, fnames) in walk(pathname):
-        for fn in fnames:
-            print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fn
-            with open(pname+'/'+fn) as jf:
+    path_list = list()
+    for wpath in pathnames:
+        for (pname, dnames, fnames) in walk(wpath):
+            for fn in fnames:
+                path_list.append(pname+'/'+fn)
+    np.random.shuffle(path_list)
+
+    ### init progress bar
+    pbar_title = str([pn.split('/')[-1] for pn in pathnames])
+    widgets = [pbar_title, Percentage(), Bar(), ETA()]
+    pbar = ProgressBar(maxval=len(path_list), widgets=widgets)
+    pbar.start()
+
+    try:
+        for fpi, fp in enumerate(path_list):
+            pbar.update(fpi)
+            with open(fp) as jf:
                 jd = json.load(jf)
                 batch_data_orig = task.read_batch_json(jd)
 
@@ -318,7 +335,7 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None, preds
             ### this collection of predictions can over flow memory
             #predictions += batch_preds
             n_batches += 1
-            assert (len(batch_preds) == len(batch_data)), 'Missing predictions from batch_data: '+fn
+            assert (len(batch_preds) == len(batch_data)), 'Missing predictions from batch_data: '+fp
 
             if vis == 'single':
                 i_datum = np.random.choice(len(batch_data))
@@ -328,12 +345,16 @@ def do_iter_external(pathname, task, model, config, train=False, vis=None, preds
                 for i_datum, datum in enumerate(batch_data):
                     visualize(i_datum, datum, model)
             if preds_path:
-                with open(preds_path+'/'+fn, 'w+') as pf:
+                with open(preds_path+'/'+fp.split('/')[-1], 'w+') as pf:
                     print >>pf, json.dumps(batch_preds, indent=4) 
 
             if hasattr(config.task, 'debug'):
                 if n_batches >= config.task.debug:
                     break
+    except:
+        print 'AT BATCH >>> ' + str(n_batches) + ' >>> ' + fp
+        raise
+
     if vis:
         visualizer.end()
 
@@ -384,20 +405,20 @@ def forward(data, model, config, train, vis, im_count=None):
     im_count = len(data) if im_count is None else im_count
 
     ### load batch data
-    max_len = max(len(d.question) for d in data)
+    #max_len = max(len(d.question) for d in data)
     max_layouts = max(len(d.layouts) for d in data)
     channels, height, width = data[0].load_features().shape
     #channels, size, trailing = data[0].load_features().shape
     #assert trailing == 1
     rel_features = None
     has_rel_features = data[0].load_rel_features() is not None
-    questions = np.ones((len(data), max_len)) * NULL_ID
+    #questions = np.ones((len(data), max_len)) * NULL_ID
     #features = np.zeros((len(data), channels, height, width))
     features = np.zeros((im_count, channels, height, width))
     layout_reprs = np.zeros(
             (len(data), max_layouts, len(MODULE_INDEX) + 7))
     for i, datum in enumerate(data):
-        questions[i, max_len-len(datum.question):] = datum.question
+        #questions[i, max_len-len(datum.question):] = datum.question
         if i < im_count:
             features[i, ...] = datum.load_features()
         ### uncomment for use in lstm
@@ -405,6 +426,7 @@ def forward(data, model, config, train, vis, im_count=None):
     layouts = [d.layouts for d in data]
 
     ### apply model
+    questions = None
     model.forward(
             layouts, layout_reprs, questions, features, rel_features, 
             dropout=(train and config.opt.dropout), deterministic=not train)

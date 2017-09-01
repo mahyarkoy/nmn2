@@ -74,34 +74,45 @@ def prepare_indices(config):
 def prepare_indices_sps(config):
     print '===Preparing indices...'
     parsepath = config.task.parse_path
+    parsepath = [p for p in parsepath.split('|')]
 
     word_counts = defaultdict(lambda: 0)
     pred_counts = defaultdict(lambda: 0)
     path_count = 0
-    for (pname, dnames, fnames) in walk(parsepath):
-        print '===At Path >>> '+ str(path_count)
-        path_count += 1
-        for fn in fnames:
-            parsefile = pname + '/' + fn.split('.')[0] + '.sent'
-            sentfile =  pname + '/' + fn.split('.')[0] + '.sps2'
-            with open(sentfile) as sf:
-                for question in sf:
-                    words = proc_question(question.strip())
-                    for word in words:
-                        word_counts[word] += 1
-            with open(parsefile) as pf:
-                for line in pf:
-                    parts = line.strip().replace("(", "").replace(")", "").replace(";", " ").split()
-                    for part in parts:
-                        pred_counts[part] += 1
 
-    for word, count in word_counts.items():
-        if count >= MIN_COUNT:
-            QUESTION_INDEX.index(word)
+    for pp in parsepath:
+        print pp
+        if pp.split('.')[-1] == 'json':
+            with open(pp, 'r') as jf:
+                jdict = json.load(jf)
+            for w, c in jdict.items():
+                word_counts[w] = c
+                pred_counts[w] = c
+        else:
+            for (pname, dnames, fnames) in walk(pp):
+                print '===At Path >>> '+ str(path_count)
+                path_count += 1
+                for fn in fnames:
+                    parsefile = pname + '/' + fn.split('.')[0] + '.sent'
+                    sentfile =  pname + '/' + fn.split('.')[0] + '.sps2'
+                    with open(sentfile) as sf:
+                        for question in sf:
+                            words = proc_question(question.strip())
+                            for word in words:
+                                word_counts[word] += 1
+                    with open(parsefile) as pf:
+                        for line in pf:
+                            parts = line.strip().replace("(", "").replace(")", "").replace(";", " ").split()
+                            for part in parts:
+                                pred_counts[part] += 1
 
-    for pred, count in pred_counts.items():
-        if count >= 10 * MIN_COUNT:
-            MODULE_INDEX.index(pred)
+        for word, count in word_counts.items():
+            if count >= MIN_COUNT:
+                QUESTION_INDEX.index(word)
+
+        for pred, count in pred_counts.items():
+            if count >= 10 * MIN_COUNT:
+                MODULE_INDEX.index(pred)
     
     ANSWER_INDEX.index('yes')
     ANSWER_INDEX.index('no')
@@ -114,7 +125,32 @@ def compute_normalizers(config):
         mean = inputvals['mean']
         std = inputvals['std']
         inputfile.close()
-        return mean, std
+    else:
+        print 'calculating image normalizations>>> '
+        mean = np.zeros((512,))
+        mmt2 = np.zeros((512,))
+        count = 0
+        for pname, dnames, fnames in walk(config.task.input_path):
+            for fn in fnames:
+                if fn.split('.')[-1] != 'npz':
+                    continue
+                impath = pname+'/'+fn
+                print 'AT IMAGE >>> '+impath
+                with np.load(impath) as zdata:
+                    assert len(zdata.keys()) == 1
+                    image_data = zdata[zdata.keys()[0]]
+                    sq_image_data = np.square(image_data)
+                    mean += np.sum(image_data, axis=(1,2))
+                    mmt2 += np.sum(sq_image_data, axis=(1,2))
+                    count += image_data.shape[1] * image_data.shape[2]
+        mean /= count
+        mmt2 /= count
+        var = mmt2 - np.square(mean)
+        std = np.sqrt(var)
+
+        # Save the mean std to file for future use (***hardcode***)
+        np.savez('normalizer_cub_bb_data.npz', mean=mean, std=std)
+    return mean, std
 
     ### SHOULD NOT GET HERE, COMPUTE NORMALIZER OUTSIDE: This is original calculation from training (***hardcode***)
     assert(False)
@@ -203,9 +239,9 @@ class VqaDatum(Datum):
         self.std = std[:,np.newaxis,np.newaxis]
 
         ### Read sentence and convert to indexed format
-        question_str = proc_question(jdict['question'])
-        indexed_question = [QUESTION_INDEX[w] or UNK_ID for w in question_str]
-        self.question = indexed_question
+        #question_str = proc_question(jdict['question'])
+        #indexed_question = [QUESTION_INDEX[w] or UNK_ID for w in question_str]
+        #self.question = indexed_question
 
         ### Read parse and convert to layout
         parse_strs = jdict['parse'].split(";")

@@ -149,7 +149,7 @@ def compute_normalizers(config):
         std = np.sqrt(var)
 
         # Save the mean std to file for future use (***hardcode***)
-        np.savez('normalizer_cub_bb_data.npz', mean=mean, std=std)
+        np.savez(config.log_path+'/normalizer_cub_bb_data.npz', mean=mean, std=std)
     return mean, std
 
     ### SHOULD NOT GET HERE, COMPUTE NORMALIZER OUTSIDE: This is original calculation from training (***hardcode***)

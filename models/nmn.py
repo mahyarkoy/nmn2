@@ -253,7 +253,6 @@ class MultiplicativeFindModule(Module):
         #reduced_image = proj_image
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
         ## Wordvec construction
-        '''
         net.f(NumpyData(label, label_data))
         net.f(Wordvec(
                 label_vec, self.config.att_hidden*filter_width*filter_height, len(MODULE_INDEX),
@@ -261,7 +260,7 @@ class MultiplicativeFindModule(Module):
         net.f(Wordvec(
                 label_vec_bias, 1, len(MODULE_INDEX),
                 bottoms=[label], param_names=[label_vec_param_bias]))
-        label_class = label_vec
+
         '''
         ## Projection of word_vec to hidden layer
         net.f(NumpyData(label, label_data))
@@ -289,11 +288,17 @@ class MultiplicativeFindModule(Module):
         #else:
         #    wordvec_d2 = wordvec_h2
         wordvec_d2 = wordvec_h2
+        '''
 
         ## reshape to 2d filter shape
-        net.blobs[wordvec_d2].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
-        #net.blobs[wordvec_d2b].reshape((batch_size, 1, 1, 1))
+        net.blobs[label_vec].reshape((batch_size, self.config.att_hidden, filter_height, filter_width))
+        net.blobs[label_vec_bias].reshape((batch_size, 1, 1, 1))
 
+        if dropout:
+            net.f(Dropout(label_vec_dropout, 0.5, bottoms=[label_vec]))
+        else:
+            label_vec_dropout = label_vec
+        
         ### Legacy version, with no image projection
         '''
         net.f(NumpyData(label, label_data))
@@ -330,7 +335,7 @@ class MultiplicativeFindModule(Module):
         ### to classify at each location of image with filter field of view
         ### note that internal weight and bias are dummy here, and padding assumes equal filter height and width
         net.f(ParamConvolution(mask, (filter_height, filter_width), 1, 
-                bottoms=[comb_image, wordvec_d2],#, wordvec_d2b],
+                bottoms=[comb_image, label_vec_dropout, label_vec_bias],
                 param_names=[mask_param_weight, mask_param_bias],
                 weight_filler=Filler("constant", 1),
                 bias_filler=Filler("constant", 0),

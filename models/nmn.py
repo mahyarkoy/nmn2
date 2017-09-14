@@ -235,9 +235,8 @@ class MultiplicativeFindModule(Module):
 
         # compute attention mask
         ### Project images to att_hidden channels
-        net.f(Convolution(
-                proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
-                param_names=[proj_image_param_weight, proj_image_param_bias]))
+        net.f(Convolution(proj_image, (1, 1), self.config.att_hidden, bottoms=[features],
+            param_names=[proj_image_param_weight, proj_image_param_bias]))
 
         #net.f(InnerProduct(reduce_image, self.config.att_hidden/2, bottoms=[features],
         #        param_names=[reduce_image_param_weight, reduce_image_param_bias]))
@@ -248,7 +247,11 @@ class MultiplicativeFindModule(Module):
         #net.f(Concat(concat_image, axis=1, bottoms=[proj_image, tiled_reduce_image]))
         #assert net.blobs[concat_image].shape == (batch_size, self.config.att_hidden, height, width)
         #net.f(ReLU(comb_image, bottoms=[concat_image]))
-        net.f(ReLU(comb_image, bottoms=[proj_image]))
+        net.f(ReLU(relu_image, bottoms=[proj_image]))
+        net.f(Convolution(reduce_image, (1, 1), self.config.att_hidden, bottoms=[features],
+            param_names=[reduce_image_param_weight, reduce_image_param_bias]))
+        net.f(ReLU(comb_image, bottoms=[reduce_image]))
+
 
         #reduced_image = proj_image
         ### Create a batch_size*att_hidden*filter_h*filter_w filter
